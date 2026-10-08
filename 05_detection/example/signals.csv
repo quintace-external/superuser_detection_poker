@@ -1,0 +1,10 @@
+signal,value
+"Perfect fold ratio, postflop",86.3% (82 / 95)
+"Perfect fold ratio, turn",92.9% (26 / 28)
+"Perfect fold ratio, river",91.2% (31 / 34)
+Pair-or-better postflop folds while behind,90.3% (56 / 62)
+Bluff index (bluff success rate),41.1% (30 / 73)
+Fold when facing a value bet,86.3% (82 / 95)
+Fold when facing a bluff,15.3% (13 / 85)
+Discrimination gap,71.0 pts
+River decision accuracy,85.2% (46 / 54)

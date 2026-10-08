@@ -1,0 +1,14 @@
+# Variant of config/step04_range.toml.
+# The narrow setting of the range model: the 240 heaviest combos, a relative prune and
+# a class floor applied after every step, a class's weight split over its live combos.
+# Every setting the variants differ in is written out, so the file means the same whatever the default is.
+#   python 04_predicted_range/run.py --dataset <name> --stage-tag cap240 --config 04_predicted_range/variants/cap240.toml
+[prior]
+class_floor = 0.0008
+
+[range]
+cap = 240
+prune_frac = 2e-4
+prune_each_step = true
+combo_weight = "live_combos"
+sizing = false            # this setting is size-blind

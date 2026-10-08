@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One hand, three tables</title>
+<meta name="description" content="How raw hand histories become three clean tables.">
+<style>
+:root{--bg:#f4f6f8;--panel:#ffffff;--fg:#17202a;--muted:#596473;--line:#d2d8df;--soft:#e8ecf0;--accent:#0d6966;--accent-soft:#d0e8e5;--amber:#a15e0a;--amber-soft:#f7e3c4;--green:#2d7a3c;--green-soft:#d6ebd8;--on-strong:#ffffff;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0e1318;--panel:#151c23;--fg:#e2e7ed;--muted:#97a2b0;--line:#2a3540;--soft:#1f2831;--accent:#4bb3aa;--accent-soft:#163a37;--amber:#eca449;--amber-soft:#3a2a13;--green:#64bc72;--green-soft:#19321f;--on-strong:#0e1318;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1318;--panel:#151c23;--fg:#e2e7ed;--muted:#97a2b0;--line:#2a3540;--soft:#1f2831;--accent:#4bb3aa;--accent-soft:#163a37;--amber:#eca449;--amber-soft:#3a2a13;--green:#64bc72;--green-soft:#19321f;--on-strong:#0e1318;color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-sans-serif,system-ui,"Segoe UI",sans-serif;overflow-wrap:break-word}
+.wrap{max-width:980px;margin:0 auto;padding:32px 16px 44px}
+.eyebrow{margin:0;font:600 13px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(28px,5.4vw,42px);line-height:1.12;letter-spacing:-.015em;margin:10px 0}
+.sub{font-size:clamp(16px,2.3vw,19px);color:var(--muted);margin:0 0 28px;max-width:44em}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px 20px;margin:0 0 18px}
+.panel h2{font-size:20px;line-height:1.3;margin:0 0 16px}
+figure{margin:0}
+figure svg{display:block;width:100%;height:auto;max-width:640px;margin:0 auto}
+.say{font-size:17px;margin:16px auto 0;max-width:640px}
+.tiles{display:grid;gap:14px;max-width:880px;margin:0 auto}
+.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.c5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.tile{text-align:center;min-width:0}
+.tile svg{max-width:100%}
+.tile b{display:block;font-size:15px;line-height:1.3;margin-top:8px}
+.tile span{display:block;font-size:14px;line-height:1.35;color:var(--muted)}
+.tile .big{font:700 22px/1.25 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--accent)}
+.key{font-size:14px;color:var(--muted);text-align:center;margin:12px 0 0}
+.tagrow{text-align:right;margin:0 0 10px}
+.tag{display:inline-block;font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.strip{margin-top:18px}
+nav.foot{margin-top:30px;padding-top:18px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px}
+nav.foot a{color:var(--fg);text-decoration:none;font-size:14px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
+nav.foot a:hover{border-color:var(--accent);color:var(--accent)}
+nav.foot a[aria-current="page"]{background:var(--accent);border-color:var(--accent);color:var(--on-strong)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:760px){.c4,.c5{grid-template-columns:repeat(2,minmax(0,1fr))}.c3{grid-template-columns:minmax(0,1fr);max-width:360px}}
+@media (max-width:480px){.wrap{padding-top:22px}.panel{padding:16px 14px}.say{font-size:16px}}
+svg text{fill:var(--fg);font-family:ui-sans-serif,system-ui,"Segoe UI",sans-serif}
+svg .m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+svg .b{font-weight:700}
+svg .tm{fill:var(--muted)}
+svg .ta{fill:var(--accent)}
+svg .tam{fill:var(--amber)}
+svg .tg{fill:var(--green)}
+svg .ton{fill:var(--on-strong)}
+svg .f-pan{fill:var(--panel)}
+svg .f-ink{fill:var(--fg)}
+svg .f-mut{fill:var(--muted)}
+svg .f-line{fill:var(--line)}
+svg .f-soft{fill:var(--soft)}
+svg .f-ac{fill:var(--accent)}
+svg .f-acs{fill:var(--accent-soft)}
+svg .f-am{fill:var(--amber)}
+svg .f-ams{fill:var(--amber-soft)}
+svg .f-gr{fill:var(--green)}
+svg .f-grs{fill:var(--green-soft)}
+svg .nf{fill:none}
+svg .k-line{stroke:var(--line)}
+svg .k-mut{stroke:var(--muted)}
+svg .k-ink{stroke:var(--fg)}
+svg .k-ac{stroke:var(--accent)}
+svg .k-am{stroke:var(--amber)}
+svg .k-gr{stroke:var(--green)}
+svg .k-pan{stroke:var(--panel)}
+svg .k-on{stroke:var(--on-strong)}
+svg .w2{stroke-width:2}
+svg .w3{stroke-width:3}
+svg .dash{stroke-dasharray:7 6}
+svg .rd{stroke-linecap:round;stroke-linejoin:round}
+svg a:hover .box{stroke:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><p class="eyebrow">Step 01 · action table</p><h1>One hand becomes three tables</h1><p class="sub">A converter reads raw hand histories and writes every hand, player and action as clean rows.</p></header>
+<main>
+<section class="panel"><h2>Two kinds of input</h2><figure><svg viewBox="0 0 600 290" role="img" aria-label="A text log and a JSON export both go into one converter, which writes three tables"><path d="M20,20 H164 L190,46 V130 H20 Z" class="f-pan k-mut w2"/><path d="M164,20 V46 H190" class="nf k-mut w2"/><text x="36" y="50" font-size="19" class="b">text log</text><rect x="36" y="64" width="128" height="7" rx="3" class="f-line"/><rect x="36" y="79" width="96" height="7" rx="3" class="f-line"/><rect x="36" y="94" width="140" height="7" rx="3" class="f-line"/><rect x="36" y="109" width="76" height="7" rx="3" class="f-line"/><path d="M20,170 H164 L190,196 V280 H20 Z" class="f-pan k-mut w2"/><path d="M164,170 V196 H190" class="nf k-mut w2"/><text x="36" y="200" font-size="19" class="b">JSON export</text><text x="105" y="258" font-size="36" text-anchor="middle" class="ta m b">{ }</text><line x1="194" y1="80" x2="239.5" y2="125.5" class="nf k-mut w3"/><polygon points="248,134 244.2,120.8 234.8,130.2" class="f-mut"/><line x1="194" y1="226" x2="240" y2="174.9" class="nf k-mut w3"/><polygon points="248,166 235.1,170.5 244.9,179.3" class="f-mut"/><rect x="252" y="110" width="136" height="80" rx="14" class="f-ac"/><text x="320" y="157" font-size="21" text-anchor="middle" class="ton b">converter</text><line x1="392" y1="150" x2="424" y2="150" class="nf k-mut w3"/><polygon points="436,150 424,143.4 424,156.6" class="f-mut"/><rect x="444" y="74" width="116" height="70" rx="6" class="f-pan k-ac w2"/><rect x="447" y="77" width="110" height="13" rx="3" class="f-acs"/><line x1="444" y1="110" x2="560" y2="110" class="nf k-line w2"/><line x1="444" y1="127" x2="560" y2="127" class="nf k-line w2"/><line x1="484" y1="93" x2="484" y2="144" class="nf k-line w2"/><rect x="456" y="102" width="116" height="70" rx="6" class="f-pan k-ac w2"/><rect x="459" y="105" width="110" height="13" rx="3" class="f-acs"/><line x1="456" y1="138" x2="572" y2="138" class="nf k-line w2"/><line x1="456" y1="155" x2="572" y2="155" class="nf k-line w2"/><line x1="496" y1="121" x2="496" y2="172" class="nf k-line w2"/><rect x="468" y="130" width="116" height="70" rx="6" class="f-pan k-ac w2"/><rect x="471" y="133" width="110" height="13" rx="3" class="f-acs"/><line x1="468" y1="166" x2="584" y2="166" class="nf k-line w2"/><line x1="468" y1="183" x2="584" y2="183" class="nf k-line w2"/><line x1="508" y1="149" x2="508" y2="200" class="nf k-line w2"/><text x="526" y="232" font-size="19" text-anchor="middle" class="b">three tables</text></svg></figure><p class="say">Hands arrive as plain text logs or as an operator’s JSON export. One converter turns both into the same clean format.</p></section>
+<section class="panel"><h2>Three tables</h2><figure><svg viewBox="0 0 600 446" role="img" aria-label="One hand split into three tables: hands, hand_players and actions"><ellipse cx="84" cy="214" rx="62" ry="40" class="f-acs k-ac w2"/><rect x="56" y="202" width="16" height="22" rx="3" class="f-pan k-line w2"/><rect x="76" y="202" width="16" height="22" rx="3" class="f-pan k-line w2"/><rect x="96" y="202" width="16" height="22" rx="3" class="f-pan k-line w2"/><text x="84" y="284" font-size="20" text-anchor="middle" class="b">one hand</text><line x1="148" y1="198" x2="199.1" y2="84.9" class="nf k-mut w3"/><polygon points="204,74 193,82.2 205.1,87.7" class="f-mut"/><line x1="150" y1="214" x2="192" y2="214" class="nf k-mut w3"/><polygon points="204,214 192,207.4 192,220.6" class="f-mut"/><line x1="148" y1="230" x2="199.5" y2="358.9" class="nf k-mut w3"/><polygon points="204,370 205.7,356.4 193.4,361.3" class="f-mut"/><text x="212" y="32" font-size="20" class="b m">hands</text><text x="588" y="32" font-size="17" text-anchor="end" class="tm">one row per hand</text><rect x="212" y="42" width="376" height="28" rx="8" class="f-soft"/><rect x="212" y="56" width="376" height="14" class="f-soft"/><text x="226" y="61" font-size="16" class="b">hand</text><text x="300" y="61" font-size="16" class="b">blinds</text><text x="390" y="61" font-size="16" class="b">board</text><text x="524" y="61" font-size="16" class="b">pot</text><rect x="226" y="78" width="30" height="8" rx="4" class="f-line"/><rect x="300" y="78" width="35.2" height="8" rx="4" class="f-line"/><rect x="390" y="78" width="110.4" height="8" rx="4" class="f-line"/><rect x="524" y="78" width="25.2" height="8" rx="4" class="f-line"/><rect x="212" y="42" width="376" height="52" rx="8" class="nf k-line w2"/><text x="212" y="152" font-size="20" class="b m">hand_players</text><text x="588" y="152" font-size="17" text-anchor="end" class="tm">one row per player</text><rect x="212" y="162" width="376" height="28" rx="8" class="f-soft"/><rect x="212" y="176" width="376" height="14" class="f-soft"/><text x="226" y="181" font-size="16" class="b">seat</text><text x="290" y="181" font-size="16" class="b">position</text><text x="400" y="181" font-size="16" class="b">cards</text><text x="510" y="181" font-size="16" class="b">result</text><rect x="226" y="198" width="18" height="8" rx="4" class="f-line"/><rect x="290" y="198" width="32" height="8" rx="4" class="f-line"/><rect x="400" y="198" width="59.8" height="8" rx="4" class="f-line"/><rect x="510" y="198" width="30.8" height="8" rx="4" class="f-line"/><rect x="226" y="222" width="14.4" height="8" rx="4" class="f-line"/><rect x="290" y="222" width="46" height="8" rx="4" class="f-line"/><rect x="400" y="222" width="36.4" height="8" rx="4" class="f-line"/><rect x="510" y="222" width="44" height="8" rx="4" class="f-line"/><rect x="226" y="246" width="20.7" height="8" rx="4" class="f-line"/><rect x="290" y="246" width="28" height="8" rx="4" class="f-line"/><rect x="400" y="246" width="52" height="8" rx="4" class="f-line"/><rect x="510" y="246" width="35.2" height="8" rx="4" class="f-line"/><rect x="212" y="162" width="376" height="100" rx="8" class="nf k-line w2"/><text x="212" y="302" font-size="20" class="b m">actions</text><text x="588" y="302" font-size="17" text-anchor="end" class="tm">one row per action</text><rect x="212" y="312" width="376" height="28" rx="8" class="f-soft"/><rect x="212" y="326" width="376" height="14" class="f-soft"/><text x="226" y="331" font-size="16" class="b">who</text><text x="320" y="331" font-size="16" class="b">what</text><text x="440" y="331" font-size="16" class="b">how much</text><rect x="226" y="348" width="40" height="8" rx="4" class="f-line"/><rect x="320" y="348" width="35.2" height="8" rx="4" class="f-line"/><rect x="440" y="348" width="39.1" height="8" rx="4" class="f-line"/><rect x="226" y="372" width="32" height="8" rx="4" class="f-line"/><rect x="320" y="372" width="50.6" height="8" rx="4" class="f-line"/><rect x="440" y="372" width="23.8" height="8" rx="4" class="f-line"/><rect x="213" y="388" width="374" height="24" class="f-acs k-ac w2"/><rect x="226" y="396" width="46" height="8" rx="4" class="f-mut"/><rect x="320" y="396" width="30.8" height="8" rx="4" class="f-mut"/><rect x="440" y="396" width="34" height="8" rx="4" class="f-mut"/><rect x="226" y="420" width="28" height="8" rx="4" class="f-line"/><rect x="320" y="420" width="44" height="8" rx="4" class="f-line"/><rect x="440" y="420" width="27.2" height="8" rx="4" class="f-line"/><rect x="212" y="312" width="376" height="124" rx="8" class="nf k-line w2"/></svg></figure><p class="say">Each hand is split three ways: one row per hand, one row per player, one row per action. Every later step reads these rows.</p></section>
+<section class="panel"><h2>One action row, zoomed in</h2><figure><svg viewBox="0 0 600 352" role="img" aria-label="One action row: BTN facing a c-bet, pot 6.5 bb, 3 bb to call, pot odds 32%"><rect x="10" y="10" width="580" height="232" rx="14" class="f-pan k-ac w3"/><text x="30" y="42" font-size="18" class="ta b">one row of the actions table</text><rect x="30" y="58" width="264" height="78" rx="10" class="f-soft"/><text x="46" y="86" font-size="17" class="tm">position</text><text x="46" y="121" font-size="25" class="b m">BTN</text><rect x="306" y="58" width="264" height="78" rx="10" class="f-soft"/><text x="322" y="86" font-size="17" class="tm">situation</text><text x="322" y="121" font-size="25" class="b">facing a c-bet</text><rect x="30" y="148" width="264" height="78" rx="10" class="f-soft"/><text x="46" y="176" font-size="17" class="tm">pot before</text><text x="46" y="211" font-size="25" class="b m">6.5 bb</text><rect x="306" y="148" width="264" height="78" rx="10" class="f-soft"/><text x="322" y="176" font-size="17" class="tm">to call</text><text x="322" y="211" font-size="25" class="b m">3 bb</text><text x="20" y="284" font-size="18" class="tm">pot odds</text><text x="300" y="284" font-size="24" text-anchor="middle" class="b m">3 ÷ (6.5 + 3) = 32%</text><rect x="20" y="300" width="383.2" height="40" class="f-soft"/><rect x="403.2" y="300" width="176.8" height="40" class="f-ac"/><text x="34" y="326" font-size="18">pot 6.5</text><text x="566" y="326" font-size="18" text-anchor="end" class="ton b">call 3</text></svg></figure><p class="say">Each row stores the price. He pays 3 bb into a 9.5 bb pot, so a call must win 32% of the time.</p></section>
+<section class="panel"><h2>Money check</h2><figure><svg viewBox="0 0 600 256" role="img" aria-label="Chips put in equal chips collected plus chips returned plus rake"><circle cx="30" cy="26" r="12" class="f-gr"/><path d="M23.2,26 L28.2,31.2 L37.5,20.3" class="nf k-on w3 rd"/><text x="50" y="33" font-size="19" class="tg b">adds up</text><text x="580" y="30" font-size="16" text-anchor="end" class="tm">example hand</text><ellipse cx="90" cy="176" rx="46" ry="12" class="f-ac k-pan w2"/><ellipse cx="90" cy="163" rx="46" ry="12" class="f-ac k-pan w2"/><ellipse cx="90" cy="150" rx="46" ry="12" class="f-ac k-pan w2"/><ellipse cx="90" cy="137" rx="46" ry="12" class="f-ac k-pan w2"/><ellipse cx="90" cy="124" rx="46" ry="12" class="f-ac k-pan w2"/><ellipse cx="90" cy="111" rx="46" ry="12" class="f-ac k-pan w2"/><ellipse cx="90" cy="98" rx="46" ry="12" class="f-ac k-pan w2"/><ellipse cx="90" cy="85" rx="46" ry="12" class="f-ac k-pan w2"/><text x="90" y="216" font-size="20" text-anchor="middle" class="b">put in</text><text x="90" y="242" font-size="19" text-anchor="middle" class="m tm">20 bb</text><ellipse cx="268" cy="176" rx="42" ry="12" class="f-ac k-pan w2"/><ellipse cx="268" cy="163" rx="42" ry="12" class="f-ac k-pan w2"/><ellipse cx="268" cy="150" rx="42" ry="12" class="f-ac k-pan w2"/><ellipse cx="268" cy="137" rx="42" ry="12" class="f-ac k-pan w2"/><ellipse cx="268" cy="124" rx="42" ry="12" class="f-ac k-pan w2"/><ellipse cx="268" cy="111" rx="42" ry="12" class="f-ac k-pan w2"/><ellipse cx="268" cy="98" rx="42" ry="12" class="f-ac k-pan w2"/><text x="268" y="216" font-size="20" text-anchor="middle" class="b">collected</text><text x="268" y="242" font-size="19" text-anchor="middle" class="m tm">18.5 bb</text><ellipse cx="410" cy="176" rx="32" ry="12" class="f-acs k-pan w2"/><text x="410" y="216" font-size="20" text-anchor="middle" class="b">returned</text><text x="410" y="242" font-size="19" text-anchor="middle" class="m tm">0.5 bb</text><ellipse cx="538" cy="176" rx="28" ry="12" class="f-mut k-pan w2"/><text x="538" y="216" font-size="20" text-anchor="middle" class="b">rake</text><text x="538" y="242" font-size="19" text-anchor="middle" class="m tm">1 bb</text><text x="180" y="150" font-size="44" text-anchor="middle" class="b">=</text><text x="340" y="150" font-size="36" text-anchor="middle" class="b">+</text><text x="474" y="150" font-size="36" text-anchor="middle" class="b">+</text></svg></figure><p class="say">Every chip put into a hand must come out as winnings, returned bets or rake. This sum is checked on every hand.</p></section>
+</main>
+<nav class="foot" aria-label="All ELI5 pages"><a href="../eli5.html">Overview</a><a href="../01_action_table/eli5.html" aria-current="page">01 Action table</a><a href="../02_equity/eli5.html">02 Equity</a><a href="../03_player_stats/eli5.html">03 Player stats</a><a href="../04_predicted_range/eli5.html">04 Predicted range</a><a href="../05_detection/eli5.html">05 Detection</a></nav>
+</div>
+</body>
+</html>

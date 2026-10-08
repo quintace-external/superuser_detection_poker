@@ -1,0 +1,130 @@
+# Step 05, population screening: the article's scorecard, the range-adjusted test, the screening stages 1-5, the
+# hand tests and the three scenarios (full table, single victim, onset).
+# Read by 05_detection/screen.py with tomllib; a file passed with --config overrides any key it repeats.
+# Every value is a starting point, to be calibrated on reviewed cases of your own population.
+# q = equity against the opponent's real cards, r = equity against his predicted range, req = pot odds B / (P + 2B).
+
+[step05]
+seed = 20261005                  # every random draw of the step (win-rate runs, k-means) starts from this seed
+scope = "hu_tables"              # hands dealt to exactly two players; every metric of the step is heads-up
+time_windows = ["all", "last30", "last15"]
+last30_days = 30                 # a window holds the days ending at the dataset's last hand date 
+last15_days = 15
+retry_seconds = 600              # how long to wait for another process's write lock on the warehouse file
+
+[step05.decisions]
+streets = ["flop", "turn", "river"]  # streets of the article's scorecard (decisions after the flop)
+behind_q = 0.5                   # behind: q < 0.5; ahead (and a split): q >= 0.5
+value_bettor_q = 0.5             # a faced bet is a value bet when the bettor's q at his bet is at least this
+bluff_q = 0.5                    # a bet or raise is a bluff when the bettor's q is below this
+
+[step05.scorecard]
+pair_plus_own_cards = true       # pair-or-better row and hand tiers: true = a pair needs a hole card (board pairs
+                                 # alone do not count); false = any pair among the seven cards (the per-suspect
+                                 # package superuser/ counts board pairs)
+bluff_includes_raises = true     # true = bluff index over bets and raises (the module's rule); false = bets made
+                                 # when not facing a bet only
+vpip_excludes_walks = true       # true = a walk (big blind, no decision) leaves the VPIP/PFR denominator, the usual
+                                 # tracker rule; false = every dealt hand counts (the module's rule)
+gap_min_n = 20                   # discrimination gap only when both denominators reach this (the module: 1)
+rate_min_n = 20                  # a rate enters a population percentile only with this many qualifying decisions
+
+[step05.method_b]                # the range-adjusted test (expected fold per street x range decile)
+streets = ["turn", "river"]      # decision set: responses to a bet on these streets, q and r both known
+range_bins = 10                  # bin = min(9, floor(10 r))
+dead_q = 0.02                    # dead: q < 0.02
+win_q = 0.5                      # winning: q >= 0.5 (a river split counts as winning)
+min_dead = 20                    # eligibility for the screen and the population centring
+min_win = 20
+z_b_screen = 4.0                 # screen: z_b at least this (starting value)
+oracle_fold_margin = 0.24        # oracle fold: fold, dead, r - req >= 0.24 (untuned starting margin)
+oracle_call_margin = 0.20        # oracle call: continue, winning, req - r >= 0.20 (untuned starting margin)
+line = 0.5                       # oracle folds and calls by range at the 0.5 line
+
+[step05.screening]               # Stage 1 and Stage 2
+min_hands = { all = 500, last30 = 250, last15 = 250 }
+band_edges = [250, 500, 1000, 1500, 2500]   # B1 250-499, B2 500-999, B3 1,000-1,499, B4 1,500-2,499, B5 >= 2,500
+cluster_method = "quantile_grid" # "quantile_grid" (VPIP tertiles x PFR tertiles) or "kmeans" (on standardised VPIP, PFR)
+grid = 3                         # quantiles per axis of the grid
+kmeans_k = 3
+kmeans_iter = 50
+min_group = 10                   # a rank group smaller than this merges its clusters, then its bands
+rule = "top10_composite"         # the Stage-1 flag: "top10_composite" or "p95_3of5" (both are stored)
+order = "cluster_then_outliers"  # "cluster_then_outliers": percentiles inside band x cluster;
+                                 # "outliers_then_cluster": percentiles inside the band, top-10% cut per cluster
+top_share = 0.10                 # top 10%: composite mid-rank percentile >= 0.90 in its group
+p95 = 0.95                       # p95_3of5: at least n_of_5 directional percentiles >= 0.95
+n_of_5 = 3
+min_stats = 3                    # the composite needs at least this many of the five statistics
+stage2_basis = "signals"         # "signals": population percentile of the signals below; "composite": Stage-1 composite
+stage2_signals = ["ofr_tr", "bluff_index"]   # oracle-fold ratio (turn + river folds) and bluff index
+stage2_top_share = 0.10
+
+[step05.runs]                    # win-rate percentile over same-length runs
+run_length = 720                 # hands per run
+min_hands = 500                  # fewer hands: out; 500-719 hands: one shorter run of all of them
+n_draws = 1000
+best_run_offsets = [0, 240, 480] # best-run variant: cut points of the runs
+
+[step05.hand_tests]              # Stage 3 categories, both rule sets; rule set "article" = q and pot odds only
+rule_sets = ["article", "range_conditioned"]
+a_q_max = 1e-9                   # A river fold to a bet with q <= this (q = 0)
+b_q_min = 0.999                  # B river call or raise of a bet with q >= this
+c_q_max = 0.5                    # C river bet or raise with q below this after which the opponent folds
+d_q_max = 0.10                   # D flop or turn fold with q below this
+d_streets = ["flop", "turn"]
+range_fold_margin = 0.24         # range_conditioned A and D: r - req >= this ("the range said continue")
+range_call_margin = 0.20         # range_conditioned B: req - r >= this ("the range said fold")
+range_bluff_r_max = 0.5          # range_conditioned C: the bettor's r below this (a bluff on the range too)
+label_fold_perfect_q = 0.05      # labels, see 05_detection/README.md
+label_fold_good_q = 0.20
+label_range_perfect_r = 0.50
+label_range_call_gap = 0.15
+label_average_band = 0.05
+
+[step05.risk]                    # Stage 4
+weights = { A = 1.0, B = 1.0, C = 0.6, D = 0.5 }
+strength_fold = [0.5, 1.0, 1.3, 1.5]   # high card, pair, two pair, trips or better
+strength_call = [1.5, 1.2, 1.0, 0.6]
+strength_bluff = 1.0
+snap_factor = 1.2                # labelled Perfect, decided within snap_seconds, pot >= snap_pot_bb; 1 when unknown
+snap_seconds = 2.0
+snap_pot_bb = 30.0
+info_gap_factor = false          # range_conditioned only: multiply by 1 + (r - q) for folds, 1 + (q - r) for calls
+surprise_eps = 1e-6              # floor of the expected probability inside -ln
+
+[step05.escalation]              # Stage 5
+days = 15
+anchor = "player_last_hand"      # "player_last_hand" (the module's rule) or "dataset_end"
+min_ratio = 0.05                 # article_fixed: flagged / hands > 0.05 and flagged > 5
+min_count = 5
+calibrated_quantile = 0.99       # population_calibrated: flagged share above the population's p99 ...
+calibrated_method = "robust"     # "robust" (median + z_q x 1.4826 MAD), "empirical" (quantile of the shares)
+calibrated_min_band = 20         # ... in the same hand-count band (smaller bands pool with the whole window)
+
+[step05.pairs]                   # single victim: ordered pairs (i -> j)
+time_windows = ["all"]
+min_hands = 500                  # heads-up hands the two played together
+min_dead = 15                    # i's dead and winning decisions against j
+min_win = 15
+fit_passes = 3                   # S_ij = mu + a_i + b_j + eps_ij, weighted alternating means
+prior_weight = 1.0               # shrinkage of a_i and b_j, in units of the median pair weight
+test = "eps"                     # BH statistic: "eps" (opponent-controlled) or "split" (z_ij)
+robust_min_pairs = 10            # robust standardisation (median, MAD) only with at least this many pairs
+bh_q = 0.01
+
+[step05.onset]                   # weekly series and the changepoint
+period_days = 7
+min_dead = 10                    # each side of a split needs this many dead and winning decisions
+min_win = 10
+
+[step05.impl]
+module = "sudetect.screening"    # the Stage 1-5 implementation; see 05_detection/README.md
+
+[step05.eval]                    # 05_detection/eval_planted.py: scoring against the simulator's answer key
+datasets = ["sim_demo", "sim_small"]
+# z_bar = 4.0                    # flag bar of E's CMH z and the changepoint z, which have no bar of
+                                 # their own; left out = method_b.z_b_screen (not tuned on the planted players)
+runs_pct_flag = 95.0             # "flagged by win rate" in the runs test: median run percentile at or above this
+centre_tol = 0.25                # acceptance: the honest field's median z_b within this of 0 ...
+sd_range = [0.8, 1.25]           # ... and its standard deviation inside this range

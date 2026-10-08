@@ -1,0 +1,529 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Superuser analysis: player 1001</title><style>
+:root{--bg:#fff;--fg:#1f1f1f;--mut:#6b6b6b;--line:#e3e3e3;--me:#c62828;--card:#fafafa}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1b1b;--fg:#e6e6e6;--mut:#9a9a9a;--line:#333;--me:#ff6b6b;--card:#232323}}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:1100px;margin:0 auto;padding:24px;line-height:1.5}
+h1{font-size:22px;font-weight:500}h2{font-size:17px;font-weight:500;margin:0 0 8px}
+.box,.decision{border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:12px 0}
+.hand{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:18px 0;background:var(--card);overflow-x:auto}
+.ln{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}.st{margin-top:10px}
+table.act{border-collapse:collapse;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;margin:2px 0}
+table.act td{padding:1px 10px 1px 0;white-space:nowrap}.num{text-align:right}.tm{color:var(--mut)}
+table.sum{border-collapse:collapse;font-size:14px;margin:6px 0}table.sum td,table.sum th{border-bottom:1px solid var(--line);padding:3px 10px;text-align:left}
+.me,.me td{color:var(--me);font-weight:600}.me .r{color:inherit}.r{color:#d32f2f}
+.tag{font-size:12px;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.qPerfect{background:#c62828;color:#fff}.qGood{background:#f9a825;color:#222}.qAverage{background:#9e9e9e;color:#fff}
+.snap{background:#6a1b9a;color:#fff}.cat{background:#e2ecfd;color:#1c3f8a}.muted{color:var(--mut)}
+</style></head><body><h1>Superuser analysis: player 1001</h1><p>Scope: all submitted hands. Hands analysed: 718 (rows submitted 718; unparseable 0; player not in hand 0; filtered out 0).</p><h2 style="margin-top:22px">Player statistics</h2><div style="overflow-x:auto"><table class="dataframe sum">
+  <thead>
+    <tr style="text-align: right;">
+      <th>stat</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Hands</td>
+      <td>718</td>
+    </tr>
+    <tr>
+      <td>Net win (chips)</td>
+      <td>+90,242</td>
+    </tr>
+    <tr>
+      <td>bb/100</td>
+      <td>+125.7</td>
+    </tr>
+    <tr>
+      <td>VPIP</td>
+      <td>66.3%</td>
+    </tr>
+    <tr>
+      <td>PFR</td>
+      <td>48.6%</td>
+    </tr>
+    <tr>
+      <td>3-bet</td>
+      <td>24.5%</td>
+    </tr>
+    <tr>
+      <td>Fold to 3-bet</td>
+      <td>65.8%</td>
+    </tr>
+    <tr>
+      <td>Flop c-bet</td>
+      <td>76.6%</td>
+    </tr>
+    <tr>
+      <td>Fold to c-bet</td>
+      <td>36.9%</td>
+    </tr>
+    <tr>
+      <td>Aggression factor</td>
+      <td>4.19</td>
+    </tr>
+    <tr>
+      <td>Aggression frequency</td>
+      <td>63.4%</td>
+    </tr>
+    <tr>
+      <td>WTSD</td>
+      <td>22.7%</td>
+    </tr>
+    <tr>
+      <td>W$SD</td>
+      <td>65.2%</td>
+    </tr>
+    <tr>
+      <td>Fold to river bet</td>
+      <td>63.0%</td>
+    </tr>
+    <tr>
+      <td>River call win rate</td>
+      <td>69.2%</td>
+    </tr>
+    <tr>
+      <td>Median action time</td>
+      <td>3 s</td>
+    </tr>
+  </tbody>
+</table></div><h2 style="margin-top:22px">Hidden-information signals</h2><div style="overflow-x:auto"><table class="dataframe sum">
+  <thead>
+    <tr style="text-align: right;">
+      <th>signal</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Perfect fold ratio, postflop</td>
+      <td>86.3% (82 / 95)</td>
+    </tr>
+    <tr>
+      <td>Perfect fold ratio, turn</td>
+      <td>92.9% (26 / 28)</td>
+    </tr>
+    <tr>
+      <td>Perfect fold ratio, river</td>
+      <td>91.2% (31 / 34)</td>
+    </tr>
+    <tr>
+      <td>Pair-or-better postflop folds while behind</td>
+      <td>90.3% (56 / 62)</td>
+    </tr>
+    <tr>
+      <td>Bluff index (bluff success rate)</td>
+      <td>41.1% (30 / 73)</td>
+    </tr>
+    <tr>
+      <td>Fold when facing a value bet</td>
+      <td>86.3% (82 / 95)</td>
+    </tr>
+    <tr>
+      <td>Fold when facing a bluff</td>
+      <td>15.3% (13 / 85)</td>
+    </tr>
+    <tr>
+      <td>Discrimination gap</td>
+      <td>71.0 pts</td>
+    </tr>
+    <tr>
+      <td>River decision accuracy</td>
+      <td>85.2% (46 / 54)</td>
+    </tr>
+  </tbody>
+</table></div><h2 style="margin-top:22px">Escalation rule</h2><div class="box">Last 15 days (2001-02-21 03:09:25 to 2001-03-08 03:09:25 UTC): 27 suspicious of 250 hands (10.8%). Rule: ratio &gt; 5% and more than 5 suspicious hands. <b>ESCALATE for manual review</b>.</div><h2 style="margin-top:22px">Suspicious hands</h2><p>74 suspicious hands (10.3% of hands analysed). Perfect fold: 38, Good fold: 7, Average fold: 7, Average call: 6, Good call: 5, Perfect call: 4, Perfect bluff: 3, Good bluff: 2, Average bluff: 2. <a href="suspicious_hands.html">Every flagged hand in full</a>.</p><p>Top 25 (Perfect first, then Good, Average; larger pots first):</p><div style="overflow-x:auto"><table class="dataframe sum">
+  <thead>
+    <tr style="text-align: right;">
+      <th>hand_uid</th>
+      <th>start_utc</th>
+      <th>decision_label</th>
+      <th>category_name</th>
+      <th>player_cards</th>
+      <th>opponent_cards</th>
+      <th>board</th>
+      <th>player_hand</th>
+      <th>opponent_hand</th>
+      <th>key_action</th>
+      <th>decision_time_s</th>
+      <th>snap_decision</th>
+      <th>pot_bb</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>h0280</td>
+      <td>2001-01-28 17:58:30</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♥K ♥Q</td>
+      <td>♦10 ♣9</td>
+      <td>♠5 ♥7 ♥10 ♣3 ♠10</td>
+      <td>Pair</td>
+      <td>Three of a Kind</td>
+      <td>faced 8,308 into ~6,080 (137% pot), folded</td>
+      <td>2.0</td>
+      <td>True</td>
+      <td>60.8</td>
+    </tr>
+    <tr>
+      <td>h0356</td>
+      <td>2001-02-08 02:50:09</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♠J ♦J</td>
+      <td>♥J ♥8</td>
+      <td>♠7 ♦5 ♥10 ♣6 ♥4</td>
+      <td>Pair</td>
+      <td>Straight</td>
+      <td>faced 7,434 into ~6,080 (122% pot), folded</td>
+      <td>4.0</td>
+      <td>False</td>
+      <td>60.8</td>
+    </tr>
+    <tr>
+      <td>h0053</td>
+      <td>2001-01-04 09:15:54</td>
+      <td>Perfect call</td>
+      <td>River bluff-catch</td>
+      <td>♣K ♣8</td>
+      <td>♥4 ♥2</td>
+      <td>♠5 ♥8 ♦3 ♦9 ♦J</td>
+      <td>Pair</td>
+      <td>High Card</td>
+      <td>faced 1,950 into ~1,300 (150% pot), call 1,950</td>
+      <td>12.0</td>
+      <td>False</td>
+      <td>52.0</td>
+    </tr>
+    <tr>
+      <td>h0198</td>
+      <td>2001-01-18 21:51:00</td>
+      <td>Perfect call</td>
+      <td>River bluff-catch</td>
+      <td>♦A ♣8</td>
+      <td>♦K ♦4</td>
+      <td>♠7 ♦3 ♥4 ♠10 ♠A</td>
+      <td>Pair</td>
+      <td>Pair</td>
+      <td>faced 1,630 into ~1,086 (150% pot), call 1,164</td>
+      <td>11.0</td>
+      <td>False</td>
+      <td>38.8</td>
+    </tr>
+    <tr>
+      <td>h0422</td>
+      <td>2001-02-14 07:58:08</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♠A ♣A</td>
+      <td>♠K ♠9</td>
+      <td>♥4 ♠8 ♦7 ♦9 ♦K</td>
+      <td>Pair</td>
+      <td>Two Pair</td>
+      <td>faced 2,850 into ~3,800 (75% pot), folded</td>
+      <td>2.0</td>
+      <td>True</td>
+      <td>38.0</td>
+    </tr>
+    <tr>
+      <td>h0051</td>
+      <td>2001-01-04 04:07:21</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♦6 ♣6</td>
+      <td>♥Q ♥10</td>
+      <td>♣2 ♦9 ♣8 ♥6 ♠7</td>
+      <td>Three of a Kind</td>
+      <td>Straight</td>
+      <td>faced 2,440 into ~3,252 (75% pot), folded</td>
+      <td>2.0</td>
+      <td>True</td>
+      <td>32.5</td>
+    </tr>
+    <tr>
+      <td>h0338</td>
+      <td>2001-02-05 21:19:32</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♥Q ♦8</td>
+      <td>♦J ♣9</td>
+      <td>♠6 ♠Q ♥8 ♥3 ♥10</td>
+      <td>Two Pair</td>
+      <td>Straight</td>
+      <td>faced 8,590 into ~2,820 (305% pot), folded</td>
+      <td>2.0</td>
+      <td>False</td>
+      <td>28.2</td>
+    </tr>
+    <tr>
+      <td>h0497</td>
+      <td>2001-02-18 06:19:14</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♣Q ♣7</td>
+      <td>♦A ♦J</td>
+      <td>♦Q ♦3 ♥10 ♦5 ♥8</td>
+      <td>Pair</td>
+      <td>Flush</td>
+      <td>faced 8,250 into ~2,120 (389% pot), folded</td>
+      <td>7.0</td>
+      <td>False</td>
+      <td>22.2</td>
+    </tr>
+    <tr>
+      <td>h0321</td>
+      <td>2001-02-02 17:25:13</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♠A ♣2</td>
+      <td>♠10 ♣8</td>
+      <td>♠9 ♣A ♥6 ♥3 ♠7</td>
+      <td>Pair</td>
+      <td>Straight</td>
+      <td>faced 3,100 into ~1,550 (200% pot), folded</td>
+      <td>14.0</td>
+      <td>False</td>
+      <td>18.6</td>
+    </tr>
+    <tr>
+      <td>h0521</td>
+      <td>2001-02-20 17:00:18</td>
+      <td>Perfect call</td>
+      <td>River bluff-catch</td>
+      <td>♦Q ♥6</td>
+      <td>♦J ♠6</td>
+      <td>♦4 ♦A ♠Q ♣7 ♦3</td>
+      <td>Pair</td>
+      <td>High Card</td>
+      <td>faced 466 into ~620 (75% pot), call 466</td>
+      <td>3.0</td>
+      <td>False</td>
+      <td>15.5</td>
+    </tr>
+    <tr>
+      <td>h0716</td>
+      <td>2001-03-03 23:16:07</td>
+      <td>Perfect fold</td>
+      <td>Early fold, near dead</td>
+      <td>♦9 ♣9</td>
+      <td>♦K ♣Q</td>
+      <td>♣J ♥4 ♠Q ♣4</td>
+      <td>Two Pair</td>
+      <td>Two Pair</td>
+      <td>faced 1,140 into ~1,520 (75% pot), folded</td>
+      <td>2.0</td>
+      <td>False</td>
+      <td>15.2</td>
+    </tr>
+    <tr>
+      <td>h0340</td>
+      <td>2001-02-05 22:36:07</td>
+      <td>Perfect call</td>
+      <td>River bluff-catch</td>
+      <td>♠K ♣9</td>
+      <td>♠J ♥10</td>
+      <td>♠6 ♣7 ♥5 ♣K ♠Q</td>
+      <td>Pair</td>
+      <td>High Card</td>
+      <td>faced 390 into ~520 (75% pot), call 390</td>
+      <td>2.0</td>
+      <td>False</td>
+      <td>13.0</td>
+    </tr>
+    <tr>
+      <td>h0438</td>
+      <td>2001-02-15 22:45:08</td>
+      <td>Perfect bluff</td>
+      <td>Successful river bluff</td>
+      <td>♠Q ♠2</td>
+      <td>♠K ♥3</td>
+      <td>♣A ♣K ♠8 ♥10 ♠6</td>
+      <td>High Card</td>
+      <td>Pair</td>
+      <td>bet 976 into ~1,300 (75% pot), opponent folded</td>
+      <td>3.0</td>
+      <td>False</td>
+      <td>13.0</td>
+    </tr>
+    <tr>
+      <td>h0714</td>
+      <td>2001-03-03 19:35:17</td>
+      <td>Perfect bluff</td>
+      <td>Successful river bluff</td>
+      <td>♣A ♥5</td>
+      <td>♥J ♠6</td>
+      <td>♥8 ♦7 ♥3 ♣6 ♠K</td>
+      <td>High Card</td>
+      <td>Pair</td>
+      <td>bet 650 into ~1,300 (50% pot), opponent folded</td>
+      <td>3.0</td>
+      <td>False</td>
+      <td>13.0</td>
+    </tr>
+    <tr>
+      <td>h0727</td>
+      <td>2001-03-04 15:59:05</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♥K ♥7</td>
+      <td>♦6 ♣3</td>
+      <td>♣2 ♦4 ♣4 ♠5 ♣7</td>
+      <td>Two Pair</td>
+      <td>Straight</td>
+      <td>faced 946 into ~1,260 (75% pot), folded</td>
+      <td>2.0</td>
+      <td>False</td>
+      <td>12.6</td>
+    </tr>
+    <tr>
+      <td>h0365</td>
+      <td>2001-02-08 22:27:13</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♥K ♥5</td>
+      <td>♥Q ♥4</td>
+      <td>♦9 ♠5 ♣4 ♦2 ♣Q</td>
+      <td>Pair</td>
+      <td>Two Pair</td>
+      <td>faced 930 into ~1,240 (75% pot), folded</td>
+      <td>2.0</td>
+      <td>False</td>
+      <td>12.4</td>
+    </tr>
+    <tr>
+      <td>h0337</td>
+      <td>2001-02-05 19:30:41</td>
+      <td>Perfect bluff</td>
+      <td>Successful river bluff</td>
+      <td>♠10 ♠6</td>
+      <td>♥J ♠9</td>
+      <td>♥5 ♣J ♣7 ♥Q ♠A</td>
+      <td>High Card</td>
+      <td>Pair</td>
+      <td>raise 856 into ~776 (110% pot), opponent folded</td>
+      <td>3.0</td>
+      <td>False</td>
+      <td>9.3</td>
+    </tr>
+    <tr>
+      <td>h0413</td>
+      <td>2001-02-13 14:48:31</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♠K ♦8</td>
+      <td>♣J ♥6</td>
+      <td>♠6 ♣8 ♠Q ♠7 ♦6</td>
+      <td>Two Pair</td>
+      <td>Three of a Kind</td>
+      <td>faced 1,260 into ~840 (150% pot), folded</td>
+      <td>2.0</td>
+      <td>False</td>
+      <td>8.4</td>
+    </tr>
+    <tr>
+      <td>h0549</td>
+      <td>2001-02-22 02:45:50</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♥A ♣J</td>
+      <td>♠Q ♣6</td>
+      <td>♥J ♥K ♣9 ♥10 ♠9</td>
+      <td>Two Pair</td>
+      <td>Straight</td>
+      <td>faced 630 into ~840 (75% pot), folded</td>
+      <td>2.0</td>
+      <td>False</td>
+      <td>8.4</td>
+    </tr>
+    <tr>
+      <td>h0717</td>
+      <td>2001-03-04 00:28:47</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♥7 ♦6</td>
+      <td>♠J ♥10</td>
+      <td>♣10 ♠8 ♥4 ♣4 ♥J</td>
+      <td>Pair</td>
+      <td>Two Pair</td>
+      <td>faced 630 into ~840 (75% pot), folded</td>
+      <td>4.0</td>
+      <td>False</td>
+      <td>8.4</td>
+    </tr>
+    <tr>
+      <td>h0735</td>
+      <td>2001-03-05 05:27:40</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♦K ♣3</td>
+      <td>♣Q ♣8</td>
+      <td>♥7 ♦Q ♦3 ♣5 ♥2</td>
+      <td>Pair</td>
+      <td>Pair</td>
+      <td>faced 1,260 into ~840 (150% pot), folded</td>
+      <td>2.0</td>
+      <td>False</td>
+      <td>8.4</td>
+    </tr>
+    <tr>
+      <td>h0743</td>
+      <td>2001-03-05 23:53:26</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♠J ♥5</td>
+      <td>♦A ♠3</td>
+      <td>♥K ♣K ♦5 ♥A ♠4</td>
+      <td>Two Pair</td>
+      <td>Two Pair</td>
+      <td>faced 630 into ~840 (75% pot), folded</td>
+      <td>4.0</td>
+      <td>False</td>
+      <td>8.4</td>
+    </tr>
+    <tr>
+      <td>h0755</td>
+      <td>2001-03-06 15:01:42</td>
+      <td>Perfect fold</td>
+      <td>Early fold, near dead</td>
+      <td>♣A ♥K</td>
+      <td>♣Q ♦10</td>
+      <td>♦Q ♥Q ♣10</td>
+      <td>Pair</td>
+      <td>Full House</td>
+      <td>faced 420 into ~630 (67% pot), folded</td>
+      <td>5.0</td>
+      <td>False</td>
+      <td>8.4</td>
+    </tr>
+    <tr>
+      <td>h0773</td>
+      <td>2001-03-07 16:48:13</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♦Q ♦4</td>
+      <td>♣10 ♥9</td>
+      <td>♣K ♣4 ♥7 ♠10 ♠A</td>
+      <td>Pair</td>
+      <td>Pair</td>
+      <td>faced 210 into ~840 (25% pot), folded</td>
+      <td>3.0</td>
+      <td>False</td>
+      <td>8.4</td>
+    </tr>
+    <tr>
+      <td>h0180</td>
+      <td>2001-01-16 18:18:59</td>
+      <td>Perfect fold</td>
+      <td>River fold when beaten</td>
+      <td>♣10 ♣5</td>
+      <td>♦Q ♦8</td>
+      <td>♥3 ♠3 ♣Q ♠9 ♠J</td>
+      <td>Pair</td>
+      <td>Two Pair</td>
+      <td>faced 716 into ~720 (99% pot), folded</td>
+      <td>1.0</td>
+      <td>False</td>
+      <td>8.2</td>
+    </tr>
+  </tbody>
+</table></div></body></html>

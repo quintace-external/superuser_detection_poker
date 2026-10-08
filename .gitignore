@@ -1,0 +1,19 @@
+# local data: every step writes to $SU_DATA_DIR (default work/)
+work/
+*.duckdb
+*.duckdb.wal
+*.parquet
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+
+# the forensic package's default output folder (python -m superuser)
+output/
+
+# step-04 example figures are drawn from local data
+04_predicted_range/figures/
+build/

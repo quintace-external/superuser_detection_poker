@@ -1,0 +1,450 @@
+# Simulator settings: 00_simulator/simulate.py and sudetect/sim/*. Read with tomllib (sudetect.sim.population.load_sim_config).
+# Amounts in big blinds unless a key says "units" (chip units, 100 units = 1 bb).
+# h = a hand's equity against one random hand on the current board. Widths are fractions of all 1,326 combos,
+# taken from the top of the preflop ranking.
+
+[sim]
+seed = 20010101
+epoch = "2001-01-01T00:00:00Z"   # first simulated day (UTC); hands are stamped from here on
+hand_id_base = 1000000            # hand numbers start at hand_id_base + 1
+sb_units = 50
+bb_units = 100
+ante_bb = 0.0                     # no ante by default
+rake_pct = 0.05                   # 5% of the pot ...
+rake_cap_bb = 3.0                 # ... capped at 3 bb ...
+no_flop_no_drop = true            # ... and only when a flop was dealt
+hu_hand_share = 0.70              # share of table-hands dealt at heads-up tables (the rest at 6-max tables)
+ring_seats = 6
+buy_in_mix = [[100, 0.80], [40, 0.04], [60, 0.04], [150, 0.06], [200, 0.06]]  # [buy-in bb, share of players]
+top_up_below = 0.5                # between hands, a stack below this share of the buy-in is topped up to it
+unit_hands = 1500                 # hands per output file / parallel work unit (about)
+
+[sim.datasets.sim_small]
+n_players = 60
+n_days = 20
+target_hands = 20000
+plants = ["SU_FULL_100", "SU_VICTIM_92", "SU_ONSET"]
+
+[sim.datasets.sim_demo]
+n_players = 300
+n_days = 60
+target_hands = 400000
+plants = ["SU_FULL_100", "SU_FULL_050", "SU_FULL_025", "SU_VICTIM_92", "SU_VICTIM_50", "SU_VICTIM_20", "SU_ONSET"]
+
+[sim.datasets.custom]
+n_players = 120
+n_days = 20
+target_hands = 50000
+plants = ["SU_FULL_100", "SU_VICTIM_92", "SU_ONSET"]
+
+# Planted superusers. kind: full_table (sees every opponent) | single_victim (sees one victim).
+# u: share of the eligible postflop decisions played with the information.
+# victim_share: share of the plant's heads-up hands played against the victim.
+# from_day_frac: information starts at round(frac * n_days) (day 45 of 60).
+# activity_quantile: the plant's volume is this quantile of everybody's activity distribution (typical volume).
+# hu_pref: the plant's share of sessions started heads-up (omitted: drawn like everybody's).
+[sim.plants.SU_FULL_100]
+kind = "full_table"
+activity_quantile = 0.6
+hu_pref = 0.6
+u = 1.0
+from_day = 0
+
+[sim.plants.SU_FULL_050]
+kind = "full_table"
+activity_quantile = 0.6
+hu_pref = 0.6
+u = 0.5
+from_day = 0
+
+[sim.plants.SU_FULL_025]
+kind = "full_table"
+activity_quantile = 0.6
+hu_pref = 0.6
+u = 0.25
+from_day = 0
+
+[sim.plants.SU_VICTIM_92]
+kind = "single_victim"
+activity_quantile = 0.6
+hu_pref = 0.85
+victim = "V1"
+victim_share = 0.92
+u = 1.0
+from_day = 0
+
+[sim.plants.SU_VICTIM_50]
+kind = "single_victim"
+activity_quantile = 0.6
+hu_pref = 0.85
+victim = "V2"
+victim_share = 0.50
+u = 1.0
+from_day = 0
+
+[sim.plants.SU_VICTIM_20]
+kind = "single_victim"
+activity_quantile = 0.8           # a busier player, so the 20% against the victim still gives a testable pair
+hu_pref = 0.85
+victim = "V3"
+victim_share = 0.20
+u = 1.0
+from_day = 0
+
+[sim.plants.SU_ONSET]
+kind = "full_table"
+activity_quantile = 0.6
+hu_pref = 0.6
+u = 1.0
+from_day_frac = 0.75
+
+[sim.schedule]
+activity_sigma = 0.5              # lognormal spread of a player's mean sessions per day
+hu_pref_mean = 0.45               # mean share of a player's sessions started heads-up (beta)
+hu_pref_concentration = 4.0
+rivals_per_player = 2             # preferred heads-up opponents per player
+stickiness_mean = 0.75            # probability that a match a player starts is against a rival (beta)
+stickiness_concentration = 8.0
+hu_match_hands_mean = 70.0        # heads-up match length in hands (lognormal)
+hu_match_hands_sigma = 0.6
+hu_match_hands_min = 10
+ring_table_hands = [120, 360]     # 6-max table session length in hands (uniform)
+ring_stay_hands_mean = 90.0       # a player's stay at a 6-max table (geometric)
+ring_refill_hands_mean = 3.0      # an empty 6-max seat waits this many hands for a new player (geometric)
+ring_min_players = 3
+hu_hand_seconds = [6.0, 2.5, 4.0]     # gap between hands: base + per decision * decisions + exponential(mean)
+ring_hand_seconds = [10.0, 3.0, 6.0]
+
+# Share of each archetype in the honest field.
+[sim.mix]
+tag = 0.30
+lag = 0.15
+nit = 0.10
+loose_passive = 0.30
+maniac = 0.05
+strong = 0.10
+
+# Per-player jitter of the archetype parameters: "relative" = lognormal sd applied to every number
+# not listed; listed keys get an absolute gaussian sd instead.
+[sim.jitter]
+relative = 0.10
+call_margin = 0.015
+belief = 0.015
+value_thr = 0.015
+raise_thr = 0.015
+noise = 0.005
+pf_noise = 0.003
+open_size = 0.15
+hu_open_size = 0.15
+raise_mult = 0.15
+
+# Style archetypes; every key is documented on sudetect.sim.policies.Style.
+[sim.archetypes.tag]
+rfi = 1.3
+limp = 0.0
+overlimp = 0.02
+iso = 1.0
+threebet = 0.085
+cold_call = 0.09
+bb_defend = 0.30
+fold_3bet = 0.55
+fourbet = 0.025
+call_4bet = 0.03
+open_size = 2.5
+hu_open = 0.80
+hu_limp = 0.05
+hu_defend = 0.55
+hu_3bet = 0.16
+hu_iso = 0.45
+hu_open_size = 2.5
+value_thr = 0.62
+cbet = 0.33
+barrel = 0.35
+stab = 0.45
+bluff = 0.08
+semibluff = 0.40
+call_margin = 0.03
+belief = 0.0
+raise_thr = 0.72
+raise_prob = 0.60
+slowplay = 0.10
+sizes = [0.25, 0.35, 0.30, 0.08, 0.02]
+polar = 0.2
+raise_mult = 3.0
+noise = 0.05
+pf_noise = 0.02
+reads = false
+
+[sim.archetypes.lag]
+rfi = 1.35
+limp = 0.0
+overlimp = 0.03
+iso = 1.0
+threebet = 0.12
+cold_call = 0.12
+bb_defend = 0.36
+fold_3bet = 0.45
+fourbet = 0.035
+call_4bet = 0.04
+open_size = 2.5
+hu_open = 0.85
+hu_limp = 0.03
+hu_defend = 0.55
+hu_3bet = 0.18
+hu_iso = 0.45
+hu_open_size = 2.2
+value_thr = 0.62
+cbet = 0.42
+barrel = 0.45
+stab = 0.50
+bluff = 0.12
+semibluff = 0.55
+call_margin = 0.02
+belief = 0.02
+raise_thr = 0.70
+raise_prob = 0.65
+slowplay = 0.10
+sizes = [0.20, 0.30, 0.30, 0.15, 0.05]
+polar = 0.4
+raise_mult = 3.0
+noise = 0.06
+pf_noise = 0.03
+reads = false
+
+[sim.archetypes.nit]
+rfi = 0.75
+limp = 0.0
+overlimp = 0.0
+iso = 0.4
+threebet = 0.045
+cold_call = 0.05
+bb_defend = 0.20
+fold_3bet = 0.70
+fourbet = 0.015
+call_4bet = 0.02
+open_size = 3.0
+hu_open = 0.62
+hu_limp = 0.05
+hu_defend = 0.40
+hu_3bet = 0.07
+hu_iso = 0.20
+hu_open_size = 3.0
+value_thr = 0.70
+cbet = 0.20
+barrel = 0.15
+stab = 0.20
+bluff = 0.03
+semibluff = 0.20
+call_margin = 0.06
+belief = 0.04
+raise_thr = 0.82
+raise_prob = 0.30
+slowplay = 0.20
+sizes = [0.20, 0.45, 0.30, 0.05, 0.0]
+polar = 0.0
+raise_mult = 3.0
+noise = 0.05
+pf_noise = 0.015
+reads = false
+
+[sim.archetypes.loose_passive]
+rfi = 0.85
+limp = 0.22
+overlimp = 0.25
+iso = 0.2
+threebet = 0.035
+cold_call = 0.22
+bb_defend = 0.40
+fold_3bet = 0.35
+fourbet = 0.012
+call_4bet = 0.04
+open_size = 3.5
+hu_open = 0.40
+hu_limp = 0.42
+hu_defend = 0.65
+hu_3bet = 0.05
+hu_iso = 0.10
+hu_open_size = 3.0
+value_thr = 0.60
+cbet = 0.18
+barrel = 0.10
+stab = 0.35
+bluff = 0.12
+semibluff = 0.15
+call_margin = 0.0
+belief = -0.04
+raise_thr = 0.80
+raise_prob = 0.40
+slowplay = 0.25
+sizes = [0.35, 0.40, 0.15, 0.08, 0.02]
+polar = 0.0
+raise_mult = 2.5
+noise = 0.08
+pf_noise = 0.05
+reads = false
+
+[sim.archetypes.maniac]
+rfi = 1.7
+limp = 0.05
+overlimp = 0.10
+iso = 1.0
+threebet = 0.16
+cold_call = 0.15
+bb_defend = 0.40
+fold_3bet = 0.30
+fourbet = 0.06
+call_4bet = 0.06
+open_size = 3.0
+hu_open = 0.92
+hu_limp = 0.03
+hu_defend = 0.65
+hu_3bet = 0.25
+hu_iso = 0.60
+hu_open_size = 3.0
+value_thr = 0.58
+cbet = 0.62
+barrel = 0.50
+stab = 0.70
+bluff = 0.30
+semibluff = 0.70
+call_margin = -0.03
+belief = -0.05
+raise_thr = 0.66
+raise_prob = 0.55
+slowplay = 0.05
+sizes = [0.05, 0.20, 0.30, 0.30, 0.15]
+polar = 0.3
+raise_mult = 3.5
+noise = 0.08
+pf_noise = 0.05
+reads = false
+
+[sim.archetypes.strong]
+rfi = 1.2
+limp = 0.0
+overlimp = 0.02
+iso = 1.0
+threebet = 0.10
+cold_call = 0.08
+bb_defend = 0.32
+fold_3bet = 0.50
+fourbet = 0.03
+call_4bet = 0.035
+open_size = 2.3
+hu_open = 0.82
+hu_limp = 0.0
+hu_defend = 0.50
+hu_3bet = 0.18
+hu_iso = 0.40
+hu_open_size = 2.2
+value_thr = 0.61
+cbet = 0.40
+barrel = 0.40
+stab = 0.45
+bluff = 0.10
+semibluff = 0.50
+call_margin = 0.05
+belief = 0.04
+raise_thr = 0.73
+raise_prob = 0.75
+slowplay = 0.12
+sizes = [0.30, 0.30, 0.25, 0.10, 0.05]
+polar = 0.4
+raise_mult = 3.0
+noise = 0.03
+pf_noise = 0.01
+reads = true
+
+# Shared preflop tables (a regular's base ranges; styles scale them).
+[sim.preflop]
+rfi = { EP = 0.15, HJ = 0.19, CO = 0.27, BTN = 0.45, SB = 0.36, BB = 0.0 }
+threebet_pos = { EP = 0.7, HJ = 0.8, CO = 0.9, BTN = 1.1, SB = 1.1, BB = 1.1 }
+cold_call_pos = { EP = 0.6, HJ = 0.8, CO = 1.0, BTN = 1.3, SB = 0.6, BB = 1.0 }
+standard_open = 2.5     # bb; calling widths assume this open size
+size_power = 0.7        # widths shrink as (standard / size) ** size_power against bigger raises
+threebet_ip = 3.0       # 3-bet to 3x the open in position ...
+threebet_oop = 3.6      # ... and 3.6x out of position
+fourbet_mult = 2.3      # 4-bet to 2.3x the 3-bet
+shove_frac = 0.4        # a raise that commits more than 40% of the stack goes all-in
+value_share = 0.6       # 60% of a 3-bet/4-bet range is value, the rest bluffs from just below the calls
+squeeze_tighten = 0.8   # calling width x 0.8 per caller already in
+size_round_bb = 0.1     # preflop raises are rounded to 0.1 bb
+size_factor_clip = [0.15, 1.25]  # bounds of that shrink / stretch
+sb_limp_mult = 1.6      # the small blind completes 1.6x wider than its style's limp width ...
+sb_overlimp_mult = 1.8  # ... and over limpers 1.8x wider
+bb_iso_multi = 0.7      # the big blind iso-raises 0.7x as wide against two or more limpers
+limp_call_keep = 0.55   # a limper facing a raise calls with 55% of his limping range
+cold_3bet_call = 1.5    # a caller or limper facing a 3-bet calls with 1.5 x call_4bet
+fivebet_share = 0.35    # 35% of the 4-bet width moves all-in against a 4-bet
+bluff_band_min = 0.05   # 3-bet bluffs come from a band at least 5% wide below the calls
+
+# Shared postflop model: what a bettor is believed to hold, value thresholds, sizes.
+[sim.postflop]
+m_street = [0.61, 0.71, 0.76]   # believed h of a bettor's range on flop / turn / river ...
+size_ref = 0.6                  # ... for a bet of 0.6 pot;
+m_size = 0.06                   # + 0.06 per pot of size above that
+m_raise = 0.10                  # + per raise on the street
+m_barrel = 0.02                 # + per earlier street the same player bet
+m_multi = 0.03                  # + per extra live opponent
+width = 0.08                    # logistic scale from h to perceived equity
+value_shift = [0.0, 0.07, 0.16] # value threshold shift on flop / turn / river
+value_multi = 0.04              # value threshold + per extra opponent
+bluff_multi = 0.5               # bluff probabilities x 0.5 per extra opponent
+weak_h = 0.40                   # below this h a hand is air
+medium_barrel = 0.25            # turn/river bluff probabilities x 0.25 for hands between air and value
+implied = [0.01, 0.03, 0.05]    # call bonus to h for gutshot / open-ender or flush draw / combo draw (flop; half on the turn)
+flop_mc_samples = 300           # Monte Carlo deals for h on the flop
+size_grid = [0.33, 0.5, 0.75, 1.0, 1.5]
+allin_snap = 0.15               # a bet leaving less than 15% of the stack behind goes all-in
+bluff_raise = 0.5               # pure bluff raises: probability = bluff x this
+m_hu = [-0.12, -0.16, -0.20]    # heads-up: ranges are wide, a bet is believed weaker (calls only) ...
+value_hu = -0.03                # ... and value bets are thinner
+strong_h = 0.9                  # h from which a hand is very strong (slow-plays, bigger sizes)
+semibluff_raise = 0.25          # facing a bet, draws raise with probability semibluff x 0.25
+size_cap = 2.0                  # bets above 2 pots count as 2 pots in the believed strength
+
+# Informed rules of a planted superuser.
+[sim.superuser]
+call_margin = 0.02
+raise_eq = 0.80
+raise_prob = 0.5
+value_eq = 0.60
+bluff_eq = 0.30
+bluff_opp_max = 0.45            # bluff only when every opponent's own h is below this
+bluff_prob = 0.6
+opp_strong = 0.60               # an opponent at least this strong will call a big value bet
+value_size_strong = 1.0
+value_size_weak = 0.5
+bluff_size = 0.6
+preflop_info = false
+
+# HUD reads of a "reads" player: opponent class -> [bluff multiplier, value threshold shift, belief shift].
+[sim.exploit]
+tag = [1.0, 0.0, 0.0]
+lag = [0.9, 0.0, -0.02]
+nit = [1.4, 0.03, 0.05]
+loose_passive = [0.4, -0.05, 0.04]
+maniac = [0.6, -0.03, -0.06]
+strong = [1.0, 0.0, 0.0]
+
+# Targets of the honest field's pooled statistics (00_simulator/simulate.py --calibrate).
+[sim.calibration]
+pair_min_hands = 500            # a heads-up pair needs this many hands for the single-victim test
+min_pairs = 40                  # sim_demo should have at least this many honest pairs
+player_min_hands = 5000         # bb/100 spread is reported for players with at least this many hands
+
+[sim.calibration.targets.ring]
+VPIP = [24, 32]
+PFR = [17, 23]
+3bet = [6, 10]
+flop_cbet = [50, 70]
+fold_to_flop_cbet = [35, 55]
+WTSD = [24, 32]
+"W$SD" = [47, 54]
+AF = [2, 4]
+
+[sim.calibration.targets.hu]
+VPIP = [60, 80]
+PFR = [40, 65]
+WTSD = [30, 42]
+"W$SD" = [47, 54]

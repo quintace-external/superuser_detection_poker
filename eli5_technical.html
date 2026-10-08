@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Pipeline Map</title>
+<style>
+/* layout: one vertical flow of stage cards; each card = what runs, the tables it writes, the key columns */
+:root{
+  --bg:#f5f7f8; --card:#ffffff; --fg:#17202a; --muted:#5b6774; --line:#d8dee4;
+  --accent:#0f6b6f; --accent-soft:#e3f1f1; --amber:#a35d00; --amber-soft:#fbefdc; --green:#2b7a4b;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,Menlo,monospace;
+  --sans:ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11161b; --card:#182028; --fg:#e3e8ed; --muted:#9aa6b2; --line:#2a343e;
+  --accent:#5fb7b9; --accent-soft:#16302f; --amber:#e3a24a; --amber-soft:#33270f; --green:#6cc391; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161b; --card:#182028; --fg:#e3e8ed; --muted:#9aa6b2; --line:#2a343e;
+  --accent:#5fb7b9; --accent-soft:#16302f; --amber:#e3a24a; --amber-soft:#33270f; --green:#6cc391; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding-inline:16px;padding-block:28px 40px}
+h1{font-size:26px;margin:0 0 4px;text-wrap:balance}
+.sub{color:var(--muted);margin:0 0 22px;max-width:70ch}
+.flow{display:grid;gap:0}
+.stage{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;grid-template-columns:150px 1fr;gap:6px 18px}
+.stage .num{grid-row:span 3;display:flex;flex-direction:column;gap:2px}
+.num b{font-family:var(--mono);font-size:22px;color:var(--accent)}
+.num span{font-size:13px;color:var(--muted)}
+.run{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.tables{display:flex;flex-wrap:wrap;gap:8px}
+.t{background:var(--accent-soft);border-radius:6px;padding:6px 9px;min-width:0}
+.t .n{font-family:var(--mono);font-weight:600;font-size:13.5px;color:var(--accent)}
+.t .g{font-size:12px;color:var(--muted)}
+.cols{font-family:var(--mono);font-size:12.5px;color:var(--fg);overflow-wrap:anywhere}
+.note{font-size:13px;color:var(--muted)}
+.arrow{height:30px;display:flex;justify-content:center}
+.arrow svg{width:22px;height:30px}
+.arrow path{fill:none;stroke:var(--accent);stroke-width:2}
+.arrow polygon{fill:var(--accent)}
+.inputs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.in{border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
+.in .n{font-weight:600}
+.warn{background:var(--amber-soft);color:var(--amber);border-radius:6px;padding:2px 7px;font-size:12px;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px;font-size:13px;color:var(--muted)}
+nav{margin-top:26px;display:flex;flex-wrap:wrap;gap:8px 14px;font-size:14px}
+nav a{color:var(--accent)}
+@media (max-width:640px){.stage{grid-template-columns:1fr}.stage .num{grid-row:auto;flex-direction:row;gap:10px;align-items:baseline}.inputs{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Data pipeline map</h1>
+  <p class="sub">What each step reads, what it writes to the warehouse (DuckDB, plain SQL), and the columns the next step needs.</p>
+
+  <div class="flow">
+    <section class="stage">
+      <div class="num"><b>00</b><span>raw input</span></div>
+      <div class="inputs">
+        <div class="in"><div class="n">Text hand histories</div><div class="note">PokerStars-style export of any room</div><div class="run">01_action_table/run.py</div></div>
+        <div class="in"><div class="n">Operator JSON replays</div><div class="note">one row per hand, internal format</div><div class="run">01_action_table/from_replay_json.py → same loader</div></div>
+      </div>
+      <div class="note">Gate: a hand is dropped whole if its money does not reconcile to the cent or a line cannot be read; every reason is counted.</div>
+    </section>
+    <div class="arrow"><svg viewBox="0 0 22 30" aria-hidden="true"><path d="M11 0 V22"/><polygon points="4,20 18,20 11,30"/></svg></div>
+
+    <section class="stage">
+      <div class="num"><b>01</b><span>action table</span></div>
+      <div class="run">replay of every hand → three tables at three grains</div>
+      <div class="tables">
+        <div class="t"><div class="n">hands</div><div class="g">1 row per hand</div><div class="cols">blinds, ante, button, board, pot per street, final pot, rake, showdown</div></div>
+        <div class="t"><div class="n">hand_players</div><div class="g">1 row per player in a hand</div><div class="cols">seat, position, stack, hole cards, vpip, pfr, saw flop, net_bb</div></div>
+        <div class="t"><div class="n">actions</div><div class="g">1 row per post or action</div><div class="cols">street, action, amount, pot_before, to_call, pot_odds, eff_stack, size_pot, faced_size_pot, situation, is_ip, made_hand, draw, board_at_action</div></div>
+      </div>
+      <div class="note">20 SQL invariants run after every load (pot and stack accounting, money identity, no action after a fold).</div>
+    </section>
+    <div class="arrow"><svg viewBox="0 0 22 30" aria-hidden="true"><path d="M11 0 V22"/><polygon points="4,20 18,20 11,30"/></svg></div>
+
+    <section class="stage">
+      <div class="num"><b>02</b><span>equity</span></div>
+      <div class="run">02_equity/run.py · every postflop decision with known cards</div>
+      <div class="tables">
+        <div class="t"><div class="n">action_equity</div><div class="g">1 row per decision</div><div class="cols">eq_vs_random (vs all hands), eq_vs_real (vs the opponent's real cards), ahead_now</div></div>
+        <div class="t"><div class="n">hand_equity</div><div class="g">heads-up hands</div><div class="cols">preflop equity vs the opponent's hand</div></div>
+      </div>
+      <div class="note">Exact on turn and river; Monte Carlo with a seed on the flop.</div>
+    </section>
+    <div class="arrow"><svg viewBox="0 0 22 30" aria-hidden="true"><path d="M11 0 V22"/><polygon points="4,20 18,20 11,30"/></svg></div>
+
+    <section class="stage">
+      <div class="num"><b>03</b><span>player stats</span></div>
+      <div class="run">03_player_stats/run.py</div>
+      <div class="tables">
+        <div class="t"><div class="n">player_stats</div><div class="g">1 row per player</div><div class="cols">16 classic stats (bb/100, VPIP, PFR, 3-bet, c-bet, WTSD, W$SD, ...) + 9 hidden-information signals (oracle fold ratios, bluff index, fold vs value / bluff, gap, river accuracy)</div></div>
+      </div>
+    </section>
+    <div class="arrow"><svg viewBox="0 0 22 30" aria-hidden="true"><path d="M11 0 V22"/><polygon points="4,20 18,20 11,30"/></svg></div>
+
+    <section class="stage">
+      <div class="num"><b>04</b><span>predicted range</span></div>
+      <div class="run">04_predicted_range/run.py · fit on the field, then score each heads-up decision</div>
+      <div class="tables">
+        <div class="t"><div class="n">rng_prior_pre</div><div class="g">field aggregation</div><div class="cols">hands the field plays per preflop situation × position</div></div>
+        <div class="t"><div class="n">rng_lik_post</div><div class="g">field aggregation, 6 back-off levels</div><div class="cols">P(action | street, situation, in/out of position, pot type, made hand, draw)</div></div>
+        <div class="t"><div class="n">rng_player_tilt</div><div class="g">per player</div><div class="cols">VPIP, PFR, aggression → widen or narrow his range</div></div>
+        <div class="t"><div class="n">action_range_equity</div><div class="g">1 row per decision</div><div class="cols">eq_vs_range, effective combos of the opponent's range</div></div>
+      </div>
+      <div class="note"><span class="warn">fit</span> on a full-information heads-up population kept outside the repository; bet size enters the likelihood in five tiers. On observer data (showdowns only) the ranges come out too strong.</div>
+    </section>
+    <div class="arrow"><svg viewBox="0 0 22 30" aria-hidden="true"><path d="M11 0 V22"/><polygon points="4,20 18,20 11,30"/></svg></div>
+
+    <section class="stage">
+      <div class="num"><b>05</b><span>detection</span></div>
+      <div class="run">05_detection/run.py --player X [--opponent Y]</div>
+      <div class="tables">
+        <div class="t"><div class="n">signals</div><div class="g">per player or pair</div><div class="cols">the 9 signals on the hands in scope</div></div>
+        <div class="t"><div class="n">suspicious hands</div><div class="g">categories A–D (+R)</div><div class="cols">label Perfect / Good / Average, snap flag, the three equities, pot odds, range verdict</div></div>
+        <div class="t"><div class="n">escalation</div><div class="g">last 15 days</div><div class="cols">flagged share &gt; 5% and &gt; 5 hands</div></div>
+        <div class="t"><div class="n">report</div><div class="g">for the expert</div><div class="cols">report.md, CSVs, suspicious_hands.html: every flagged hand ranked by the Equity review, with the opponent's predicted range</div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="legend"><span>Field aggregations = step 04 fit tables</span><span>Player stats = step 03</span><span>Every table is plain SQL on DuckDB; any warehouse can host it</span></div>
+
+  <nav>
+    <a href="eli5.html">How a superuser gets caught</a>
+    <a href="01_action_table/eli5.html">01 Action table</a>
+    <a href="02_equity/eli5.html">02 Equity</a>
+    <a href="03_player_stats/eli5.html">03 Player stats</a>
+    <a href="04_predicted_range/eli5.html">04 Predicted range</a>
+    <a href="05_detection/eli5.html">05 Detection</a>
+  </nav>
+</div>
+</body>
+</html>

@@ -1,0 +1,97 @@
+{
+  "player": 1001,
+  "opponent": null,
+  "meta": {
+    "rows": 718,
+    "unparseable": 0,
+    "not_in_hand": 0,
+    "filtered": 0,
+    "hands_analysed": 718
+  },
+  "stats": {
+    "hands": 718,
+    "net_win": 90242.0,
+    "bb_100": 125.68523676880223,
+    "vpip": 0.6629526462395543,
+    "pfr": 0.4860724233983287,
+    "three_bet": 0.24509803921568626,
+    "fold_to_3bet": 0.6578947368421053,
+    "flop_cbet": 0.7657142857142857,
+    "fold_to_cbet": 0.36923076923076925,
+    "aggression_factor": 4.1940298507462686,
+    "aggression_frequency": 0.6343115124153499,
+    "wtsd": 0.22697368421052633,
+    "w_sd": 0.6521739130434783,
+    "fold_to_river_bet": 0.6296296296296297,
+    "river_call_win_rate": 0.6923076923076923,
+    "median_think_time": 3.0
+  },
+  "signals": {
+    "perfect_fold_ratio_postflop": {
+      "value": 0.8631578947368421,
+      "k": 82,
+      "n": 95
+    },
+    "perfect_fold_ratio_turn": {
+      "value": 0.9285714285714286,
+      "k": 26,
+      "n": 28
+    },
+    "perfect_fold_ratio_river": {
+      "value": 0.9117647058823529,
+      "k": 31,
+      "n": 34
+    },
+    "pair_plus_folds_behind": {
+      "value": 0.9032258064516129,
+      "k": 56,
+      "n": 62
+    },
+    "bluff_index": {
+      "value": 0.410958904109589,
+      "k": 30,
+      "n": 73
+    },
+    "fold_vs_value_bet": {
+      "value": 0.8631578947368421,
+      "k": 82,
+      "n": 95
+    },
+    "fold_vs_bluff": {
+      "value": 0.15294117647058825,
+      "k": 13,
+      "n": 85
+    },
+    "discrimination_gap": {
+      "value": 0.7102167182662539,
+      "k": null,
+      "n": null
+    },
+    "river_decision_accuracy": {
+      "value": 0.8518518518518519,
+      "k": 46,
+      "n": 54
+    }
+  },
+  "escalation": {
+    "window_days": 15,
+    "window_start_utc": "2001-02-21 03:09:25",
+    "window_end_utc": "2001-03-08 03:09:25",
+    "hands": 250,
+    "suspicious": 27,
+    "ratio": 0.108,
+    "escalate": true
+  },
+  "suspicious_hand_count": 74,
+  "player_id": "1001",
+  "dataset": "final_case",
+  "by_category": {
+    "A": 31,
+    "D": 21,
+    "B": 15,
+    "C": 7
+  },
+  "range_only_hands": 0,
+  "decision_times_restored": true,
+  "range_boxes": 74
+}

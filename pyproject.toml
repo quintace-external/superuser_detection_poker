@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "superuser-detection"
+version = "0.1.0"
+description = "Superuser (card-visibility) detection: action table, equity, predicted range and per-suspect report"
+requires-python = ">=3.11"
+dependencies = ["numpy", "pandas>=1.5", "pyarrow", "duckdb", "tabulate>=0.9"]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "phevaluator"]
+figures = ["matplotlib"]
+
+[project.scripts]
+superuser-report = "superuser.cli:main"
+
+[tool.setuptools]
+packages = ["superuser", "sudetect", "sudetect.sim"]

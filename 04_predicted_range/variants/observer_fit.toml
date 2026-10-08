@@ -1,0 +1,21 @@
+# Variant of config/step04_range.toml: fit the field tables on observer hand histories.
+# Observer data shows hole cards only at the showdown. The fit reads only rows whose cards are known, so on such data
+# it is fitted on showdown hands alone and leans toward the hands that reach a showdown (strong and drawing hands
+# are over-represented, the folded part of every range is missing). Use it until full-information data is available.
+# Every range setting is written out, so the file means the same whatever the default is.
+#   python 04_predicted_range/run.py --dataset mined --steps fit --config 04_predicted_range/variants/observer_fit.toml
+#   python 04_predicted_range/run.py --dataset article_sample --fit-from mined --steps fit,enrich \
+#       --config 04_predicted_range/variants/observer_fit.toml
+[fit]
+min_full_share = 0.0      # allow fitting a dataset without full-information hands
+table_size_classes = true # the preflop prior and the player tilts are keyed by table size (2 / 3-6 / 7+)
+
+[prior]
+class_floor = 0.0
+
+[range]
+cap = 1326
+prune_frac = 0.0
+prune_each_step = true
+combo_weight = "class_size"
+sizing = true             # the opponent's bet sizes narrow his range (rng_lik_size); false = size-blind

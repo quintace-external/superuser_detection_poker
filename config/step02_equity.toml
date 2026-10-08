@@ -1,0 +1,18 @@
+# Step 02: equity references (02_equity/run.py). Read with tomllib; a file passed with --config overrides any key
+# it repeats, and the command-line flags override both.
+
+[step02]
+backend = "numpy"              # numpy (default, numpy only) | pyrust (needs the optional package pyrust_poker)
+include_preflop = false        # also score preflop decisions: eq_vs_random from the exact table, eq_vs_real by MC
+seed = 20011                   # base seed of every Monte Carlo estimate; the same seed gives the same tables
+mc_samples = 4096              # MC deals per row where MC is used (flop vs a random hand, preflop rows); max 65,536
+flop_random_exact = false      # true: enumerate the flop vs a random hand as well (slower, see 02_equity/README.md)
+hand_equity = true             # build hand_equity: each player's preflop equity vs the other's hand, heads-up hands
+hand_equity_samples = 8192     # MC deals per heads-up hand (numpy backend); standard error <= 0.5 / sqrt(n) = 0.0055
+batch_rows = 50000             # decision rows per staged parquet part (the unit that a rerun can reuse)
+batch_hands = 50000            # heads-up hands per staged part of hand_equity
+chunk_rows = 2000              # rows per task sent to a worker process
+procs = 0                      # worker processes: 0 = all logical CPUs, 1 = no pool (everything in this process)
+stage_dir = "stage_equity"     # parts are written to $SU_DATA_DIR/<dataset>/<stage_dir>/
+identity_sample = 1000         # heads-up hands whose two preflop equities are recomputed independently after a run
+lock_wait_s = 300              # seconds to wait while another process holds the warehouse file lock

@@ -1,0 +1,22 @@
+# Every threshold, margin, window, minimum sample and switch of the pipeline, one table per step.
+# Read with tomllib; a file passed with --config overrides any key it repeats.
+
+# ---------------------------------------------------------------------------------------------------------------
+# Step 01: raw hand histories -> hands, hand_players, actions
+# ---------------------------------------------------------------------------------------------------------------
+[step01]
+batch_hands = 50000              # hands parsed before one bulk insert of the three tables
+input_extensions = [".txt", ".zip"]  # files read from an --input folder (zip members ending in .txt)
+amount_decimals = 2              # decimal places of amounts in the text; amounts are parsed to integer units
+infer_hidden_posts = true        # add an unprinted post when a preflop check or short call shows one is missing
+drop_hidden_post_hands = true    # gate: drop hands with an inferred post (their per-line amounts are shifted)
+keep_bomb_pots = false           # gate: keep antes-only hands with no preflop betting as variant 'bomb_pot'
+timeout_marks_auto_action = true # a fold or check right after "<player> has timed out" is the system's action
+money_tolerance_units = 0        # gate: allowed error of collected + returned = put in - rake - drops, in units
+hand_classes = true              # fill made_hand / draw / hand_bucket10 / board columns (sudetect.handclass)
+invariant_tol = 1e-6             # tolerance of the invariant checks, in big blinds
+
+[step01.hash_ids]                # --hash-ids: HMAC-SHA256 with the secret in env SU_ID_SALT, truncated hex
+player_hex = 12
+table_hex = 12
+hand_hex = 16
