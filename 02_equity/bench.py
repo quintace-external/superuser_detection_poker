@@ -48,11 +48,11 @@ def load_rows(dataset: str, n: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     con = warehouse.connect(dataset, read_only=True)
     try:
         plan = warehouse.query_df(con, (SQL_DIR / "plan_decisions.sql").read_text(encoding="utf-8"),
-                                  include_preflop=False)
+                                  include_preflop=False, preflop_max_opp=0)
         cum = plan["n_rows"].cumsum().to_numpy()
         last = plan["hand_id"].iloc[min(len(plan) - 1, int((cum < 8 * n).sum()))]
         rows = warehouse.query_df(con, (SQL_DIR / "inputs_decisions.sql").read_text(encoding="utf-8"),
-                                  lo=plan["hand_id"].iloc[0], hi=last, include_preflop=False)
+                                  lo=plan["hand_id"].iloc[0], hi=last, include_preflop=False, preflop_max_opp=0)
         hplan = warehouse.query_df(con, (SQL_DIR / "plan_hands.sql").read_text(encoding="utf-8"))
         hands = warehouse.query_df(con, (SQL_DIR / "inputs_hands.sql").read_text(encoding="utf-8"),
                                    lo=hplan["hand_id"].iloc[0], hi=hplan["hand_id"].iloc[min(n, len(hplan)) - 1])

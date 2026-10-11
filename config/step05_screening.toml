@@ -1,12 +1,14 @@
 # Step 05, population screening: the article's scorecard, the range-adjusted test, the screening stages 1-5, the
-# hand tests and the three scenarios (full table, single victim, onset).
+# hand tests, the three scenarios (full table, single victim, onset), the pair outliers and the observer metrics.
 # Read by 05_detection/screen.py with tomllib; a file passed with --config overrides any key it repeats.
 # Every value is a starting point, to be calibrated on reviewed cases of your own population.
 # q = equity against the opponent's real cards, r = equity against his predicted range, req = pot odds B / (P + 2B).
 
 [step05]
 seed = 20261005                  # every random draw of the step (win-rate runs, k-means) starts from this seed
-scope = "hu_tables"              # hands dealt to exactly two players; every metric of the step is heads-up
+scope = "flop_hu"                # heads-up confrontations at tables of any size: postflop, the hands exactly two
+                                 # players saw the flop of; preflop, the decisions with one live opponent.
+                                 # "hu_tables": two-player tables only (the article's scope)
 time_windows = ["all", "last30", "last15"]
 last30_days = 30                 # a window holds the days ending at the dataset's last hand date 
 last15_days = 15
@@ -56,9 +58,36 @@ top_share = 0.10                 # top 10%: composite mid-rank percentile >= 0.9
 p95 = 0.95                       # p95_3of5: at least n_of_5 directional percentiles >= 0.95
 n_of_5 = 3
 min_stats = 3                    # the composite needs at least this many of the five statistics
+table_class_groups = true        # rank inside the table size a player played most (hu / 3-6 / 7+) first
 stage2_basis = "signals"         # "signals": population percentile of the signals below; "composite": Stage-1 composite
 stage2_signals = ["ofr_tr", "bluff_index"]   # oracle-fold ratio (turn + river folds) and bluff index
 stage2_top_share = 0.10
+
+[step05.preflop]                 # preflop tests (sudetect/streets.py): decisions with one live opponent
+range_bins = 20                  # strata: situation (vs_open, vs_3bet, ...) x bin of r, the equity against the
+                                 # field's range for the opponent's line (04_predicted_range/preflop.py)
+behind_q = 0.40                  # behind the real hand: q < 0.40 (dominated, a lower pair, ...)
+ahead_q = 0.55                   # ahead: q >= 0.55; the rows in between are left out of the tests
+min_behind = 20                  # eligibility: responses to a raise behind and ahead
+min_ahead = 20
+z_screen = 4.0                   # pf_screen: pf_zr at least this. pf_z = (fold CMH z + aggression z) / sqrt 2;
+                                 # pf_zr = pf_z robust-standardised on the population (see robust_min_players)
+robust_min_players = 20          # fewer eligible players: pf_zr = pf_z (no population to centre on)
+fold_margin = 0.10               # PF1 fold: r - req >= this (the range said continue), q < req and q < behind_q
+call_margin = 0.0                # PF2 call: req - r >= this (the range said fold), q >= ahead_q
+light_r = 0.45                   # PF3 re-raise: r below this (light against the line), q >= ahead_q
+strong_r = 0.60                  # PF4 flat call: r at least this (strong against the line), q < behind_q
+
+[step05.flop]                    # flop test and rules (sudetect/streets.py); the core test stays turn + river
+dead_q = 0.20                    # behind: q < 0.20 (two cards to come, few hands are dead); winning: q >= win_q
+win_q = 0.5
+min_dead = 20
+min_win = 20
+z_screen = 4.0                   # fl_screen: z_b_flop_r (z_b_flop robust-standardised) at least this
+robust_min_players = 20
+fold_q_max = 0.20                # FL1 fold facing a bet: q below this and r - req >= fold_margin
+fold_margin = 0.20
+call_margin = 0.15               # FL2 call or raise facing a bet: q >= 0.5 and req - r >= this
 
 [step05.runs]                    # win-rate percentile over same-length runs
 run_length = 720                 # hands per run
@@ -102,6 +131,20 @@ calibrated_quantile = 0.99       # population_calibrated: flagged share above th
 calibrated_method = "robust"     # "robust" (median + z_q x 1.4826 MAD), "empirical" (quantile of the shares)
 calibrated_min_band = 20         # ... in the same hand-count band (smaller bands pool with the whole window)
 
+[step05.escalation.street_tails] # rule set "street_tails" (sudetect/screening.py): the top tail on several streets at
+                                 # once, from the player-level tests of each street; window "all" in escalations
+pf_zr_min = 4.0                  # preflop hit: pf_zr at least this, among the preflop test's eligible players
+fl_z_b_min = 3.0                 # flop hit: z_b_flop at least this ...
+fl_e_disc_min = 0.30             # ... and fl_e_disc (excess discrimination on the flop) at least this ...
+fl_min_dead = 15                 # ... with at least this many flop decisions behind (q < flop.dead_q) ...
+fl_min_win = 15                  # ... and this many winning (q >= flop.win_q)
+tr_z_b_min = 3.0                 # turn + river hit: z_b at least this ...
+tr_e_disc_min = 0.30             # ... and e_disc at least this ...
+tr_min_dead = 20                 # ... with at least this many dead decisions (q < method_b.dead_q) ...
+tr_min_win = 20                  # ... and this many winning (q >= method_b.win_q)
+escalate_min_hits = 2            # escalate: hits on at least this many of the three streets
+review_min_hits = 1              # review: hits on at least this many (player_scores.review_street_tails)
+
 [step05.pairs]                   # single victim: ordered pairs (i -> j)
 time_windows = ["all"]
 min_hands = 500                  # heads-up hands the two played together
@@ -112,6 +155,31 @@ prior_weight = 1.0               # shrinkage of a_i and b_j, in units of the med
 test = "eps"                     # BH statistic: "eps" (opponent-controlled) or "split" (z_ij)
 robust_min_pairs = 10            # robust standardisation (median, MAD) only with at least this many pairs
 bh_q = 0.01
+
+[step05.pair_outliers]           # pair outliers (sudetect/pairs.py): every ordered pair "A against B" of the whole
+                                 # dataset (window "all"), the opponents A beats beyond his own level and beyond what
+                                 # everyone else does against them; table pair_outliers. Pair hands: the two players
+                                 # who stayed in longest, at any table size (scope "hu_tables": two-player tables only)
+min_hands_wr = 30                # hands together before the win-rate part counts
+min_cases = 7                    # cases before any other part counts
+prior = 20                       # pseudo-cases pulling a thin "A against the rest" or "the rest against B" to the mean
+score_parts = ["wr", "sd", "call", "bet", "allin", "pre", "fold"]   # parts in the score: sum of z / sqrt(sum of
+                                 # the parts' correlations), so parts that read the same hands are not double-counted
+victim_min_score = 3.0           # a victim of A: the pair's score at least this ...
+victim_rank_share = 0.01         # ... and its rank inside the top 1% of ranked pairs ...
+victim_min_rank = 10             # ... or inside the top 10, whichever is larger
+big_pot = 30.0                   # bb: the "big pot" line of the pot-size columns
+showdown_only = false            # true: decision parts from showdown hands only, what an observer of a
+                                 # full-information dataset would see (for evaluation)
+
+[step05.observer]                # observer metrics (sudetect/potsize.py): money and showdowns, no hidden cards;
+                                 # obs_* columns of player_scores, window "all", every hand of the dataset
+big_pot_bb = 30.0                # river bets and calls won, stack-offs: pots over this
+pot_edges_bb = [30.0, 100.0, 200.0]   # final pot bands b1 < 30 <= b2 < 100 <= b3 < 200 <= b4
+flop_edges_bb = [15.0, 40.0]     # pot at the flop: single-raised < 15 <= 3-bet < 40 <= 4-bet and more
+stackoff_share = 0.9             # a stack-off: net <= -0.9 x the effective starting stack
+min_hands = 1000                 # field ranks (_pct, _rank, _of) among players with at least this many hands ...
+min_cases = 20                   # ... and, for a rate, this many cases
 
 [step05.onset]                   # weekly series and the changepoint
 period_days = 7

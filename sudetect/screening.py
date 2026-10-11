@@ -4,7 +4,8 @@
 * Stage 2: the top of the Stage-1 survivors on the hidden-information signals;
 * Stage 3: hand tests, categories A-D with the labels Perfect / Good / Average, under two rule sets;
 * Stage 4: a risk score per flagged hand (and a surprise version comparable across players);
-* Stage 5: escalation over the last 15 days, by the article's fixed rule and by a population-calibrated rule;
+* Stage 5: escalation over the last 15 days, by the article's fixed rule and by a population-calibrated rule; and
+  the rule set ``street_tails``: the top tail of the preflop, flop and turn + river tests on several streets at once;
 * the win-rate percentile over same-length runs.
 
 The functions take pandas frames built by ``05_detection/screen.py`` and the ``[step05]`` table of
@@ -29,6 +30,17 @@ CATEGORY_NAMES = {"A": "River fold when beaten", "B": "River bluff-catch", "C": 
                   "D": "Early fold, near dead"}
 CATEGORY_KIND = {"A": "fold", "B": "call", "C": "bluff", "D": "fold"}
 LABEL_ORDER = {"Perfect": 0, "Good": 1, "Average": 2}
+#: The columns of the ``escalations`` table, one row per (player, rule set, rule), every rule set.
+ESCALATION_COLUMNS = ["player_id", "rule_set", "rule", "window_start", "window_end", "hands", "flagged", "ratio",
+                      "band", "threshold_ratio", "threshold_count", "escalate"]
+#: The street hits of the ``street_tails`` rule set, in street order.
+STREET_HITS = ("pf_hit", "fl_hit", "tr_hit")
+#: ``[step05.escalation.street_tails]`` keys a configuration leaves out.
+STREET_TAILS_DEFAULTS: dict[str, float] = {
+    "pf_zr_min": 4.0, "fl_z_b_min": 3.0, "fl_e_disc_min": 0.30, "fl_min_dead": 15, "fl_min_win": 15,
+    "tr_z_b_min": 3.0, "tr_e_disc_min": 0.30, "tr_min_dead": 20, "tr_min_win": 20, "escalate_min_hits": 2,
+    "review_min_hits": 1,
+}
 
 
 def band_labels(hands: pd.Series, edges: Sequence[int]) -> pd.Series:
@@ -115,6 +127,8 @@ def _leveled_pct(df: pd.DataFrame, value: pd.Series, levels: Sequence[Sequence[s
 def stage1(players: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.DataFrame:
     """Stage 1 on one row per (player_id, time_window) with ``hands``, ``vpip``, ``pfr`` and the five statistics.
 
+    With ``table_class_groups`` (and a ``table_class`` column: the table size the player played most) every group
+    is also split by table class first, so heads-up win rates are not ranked against six-max ones.
     Adds ``s1_eligible`` (hands >= the window's minimum), ``band``, ``cluster``, ``pct_<stat>`` (directional
     mid-rank percentiles: high = outlier), ``s1_composite`` (their mean, at least ``min_stats`` of them),
     ``s1_composite_pct``, ``s1_rank_group``, ``s1_top10``, ``s1_p95`` and ``s1_flag`` (the configured rule).
@@ -127,11 +141,13 @@ def stage1(players: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.DataFrame:
     for _, g in df[df["s1_eligible"]].groupby("time_window", sort=True):
         df.loc[g.index, "cluster"] = style_clusters(g, sc, int(cfg.get("seed", 0)))
     e = df[df["s1_eligible"]].copy()
-    fine, mid, top = ["time_window", "band", "cluster"], ["time_window", "band"], ["time_window"]
+    tc = ["table_class"] if sc.get("table_class_groups", False) and "table_class" in e.columns else []
+    fine, mid, top = ["time_window", *tc, "band", "cluster"], ["time_window", *tc, "band"], ["time_window", *tc]
+    tail = [["time_window"]] if tc else []
     if sc.get("order", "cluster_then_outliers") == "outliers_then_cluster":
-        stat_levels, cut_levels = [mid, top], [fine, mid, top]
+        stat_levels, cut_levels = [mid, top, *tail], [fine, mid, top, *tail]
     else:
-        stat_levels, cut_levels = [fine, mid, top], [fine, mid, top]
+        stat_levels, cut_levels = [fine, mid, top, *tail], [fine, mid, top, *tail]
     min_group = int(sc.get("min_group", 10))
     pcts = []
     for stat, direction in STAGE1_STATS.items():
@@ -370,8 +386,7 @@ def escalate(flagged: pd.DataFrame, hands: pd.DataFrame, cfg: Mapping[str, Any])
     median + z_q x 1.4826 MAD of the shares (``robust``; falls back to the empirical quantile when the MAD is 0) or
     the empirical quantile (``empirical``)."""
     es = cfg["escalation"]
-    cols = ["player_id", "rule_set", "rule", "window_start", "window_end", "hands", "flagged", "ratio", "band",
-            "threshold_ratio", "threshold_count", "escalate"]
+    cols = ESCALATION_COLUMNS
     if hands.empty:
         return pd.DataFrame(columns=cols)
     h = hands[["player_id", "hand_id", "started_at"]].copy()
@@ -419,3 +434,64 @@ def _quantile_threshold(x: np.ndarray, q: float, zq: float, method: str) -> floa
         if mad > 0:
             return med + zq * mad
     return float(np.quantile(x, q))
+
+
+def street_tails_settings(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """The ``[step05.escalation.street_tails]`` table over :data:`STREET_TAILS_DEFAULTS`."""
+    return {**STREET_TAILS_DEFAULTS, **((cfg.get("escalation") or {}).get("street_tails") or {})}
+
+
+def street_tails(players: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.DataFrame:
+    """The rule set ``street_tails`` on player rows: escalation needs the top tail on several streets at once.
+
+    One hit per street, each with its own sample floor (``[step05.escalation.street_tails]``):
+
+    * ``pf_hit``: ``pf_zr >= pf_zr_min`` among the preflop test's eligible players (``pf_eligible``);
+    * ``fl_hit``: ``z_b_flop >= fl_z_b_min`` and ``fl_e_disc >= fl_e_disc_min``, with at least ``fl_min_dead`` flop
+      decisions behind and ``fl_min_win`` winning ones (``fl_nd``, ``fl_nw``);
+    * ``tr_hit``: ``z_b >= tr_z_b_min`` and ``e_disc >= tr_e_disc_min`` (turn and river, method (b)), with at least
+      ``tr_min_dead`` dead and ``tr_min_win`` winning decisions (``nd``, ``nw``).
+
+    At a fixed effect a z grows with the sample, and an effect size alone is noisy on a thin one: the flop and the turn
+    + river hits need both. ``street_hits`` counts the hits on every row, from that window's own tests. The verdicts
+    sit on the ``all`` rows, like the other Stage 5 columns (NA on the other windows): ``esc_street_tails`` =
+    ``street_hits >= escalate_min_hits``, ``review_street_tails`` = ``street_hits >= review_min_hits``."""
+    st = street_tails_settings(cfg)
+    df = players.copy()
+
+    def at_least(col: str, key: str) -> pd.Series:
+        return pd.to_numeric(df[col], errors="coerce").astype(float) >= float(st[key])
+
+    df["pf_hit"] = df["pf_eligible"].fillna(False).astype(bool) & at_least("pf_zr", "pf_zr_min")
+    df["fl_hit"] = (at_least("fl_nd", "fl_min_dead") & at_least("fl_nw", "fl_min_win")
+                    & at_least("z_b_flop", "fl_z_b_min") & at_least("fl_e_disc", "fl_e_disc_min"))
+    df["tr_hit"] = (at_least("nd", "tr_min_dead") & at_least("nw", "tr_min_win")
+                    & at_least("z_b", "tr_z_b_min") & at_least("e_disc", "tr_e_disc_min"))
+    df["street_hits"] = df[list(STREET_HITS)].sum(axis=1).astype(np.int64)
+    allw = df["time_window"] == "all"
+    for col, key in (("esc_street_tails", "escalate_min_hits"), ("review_street_tails", "review_min_hits")):
+        df[col] = (df["street_hits"] >= int(st[key])).astype("boolean").where(allw)
+    return df
+
+
+def street_tails_escalations(players: pd.DataFrame, hands: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.DataFrame:
+    """The ``escalations`` rows of rule set ``street_tails`` (rule ``several_streets``): one per player of the
+    ``all`` window of :func:`street_tails`, in the columns of :func:`escalate`.
+
+    The window runs from the player's first to his last hand; ``flagged`` = the streets hit, ``ratio`` = their share
+    of the three streets, ``band`` = his hand-count band; ``threshold_count`` = ``escalate_min_hits`` - 1, so that
+    every rule set escalates only with flagged > threshold_count; ``threshold_ratio`` is empty (no share rule)."""
+    need = int(street_tails_settings(cfg)["escalate_min_hits"])
+    p = players[players["time_window"] == "all"]
+    if p.empty:
+        return pd.DataFrame(columns=ESCALATION_COLUMNS)
+    span = hands.groupby("player_id")["started_at"].agg(window_start="min", window_end="max")
+    out = p[["player_id", "hands", "street_hits"]].join(span, on="player_id")
+    out["rule_set"], out["rule"] = "street_tails", "several_streets"
+    out["flagged"] = out["street_hits"].astype(np.int64)
+    out["ratio"] = out["flagged"] / len(STREET_HITS)
+    out["band"] = band_labels(out["hands"], cfg["screening"]["band_edges"])
+    out["threshold_ratio"] = np.nan
+    out["threshold_count"] = need - 1
+    out["escalate"] = out["flagged"] >= need
+    return out[ESCALATION_COLUMNS].reset_index(drop=True)

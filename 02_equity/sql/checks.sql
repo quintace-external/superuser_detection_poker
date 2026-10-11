@@ -1,12 +1,14 @@
 -- Checks of the step-02 tables. One row per check: (check_name, violations). Every count must be 0.
--- Parameters: :include_preflop (preflop rows were scored), :hand_equity (hand_equity was built).
+-- Parameters: :include_preflop (preflop rows were scored), :preflop_max_opp (their live-opponent limit, 0 = none),
+-- :hand_equity (hand_equity was built).
 
 WITH
 scored AS (
     SELECT d.hand_id, d.action_index, d.n_live
     FROM decisions AS d
     WHERE d.hole_cards IS NOT NULL
-      AND (d.street <> 'preflop' OR :include_preflop)
+      AND (d.street <> 'preflop'
+           OR (:include_preflop AND (:preflop_max_opp <= 0 OR d.n_live - 1 <= :preflop_max_opp)))
 ),
 hu_hands AS (
     SELECT hp.hand_id

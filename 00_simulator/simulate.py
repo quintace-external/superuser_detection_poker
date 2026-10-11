@@ -1,8 +1,12 @@
-"""Generate a simulated dataset of full-information hand histories.
+"""Generate a simulated dataset of hand histories (full information, or the mined view with --mined).
 
     python 00_simulator/simulate.py --dataset sim_small
     python 00_simulator/simulate.py --dataset sim_demo --procs 16
     python 00_simulator/simulate.py --dataset sim_demo --calibrate --hands 50000 --no-write
+    python 00_simulator/simulate.py --dataset sim_small --mined --out $SU_DATA_DIR/sim_mined/hands
+
+``--mined`` writes the same hands as an observer at the tables sees them: no
+``Dealt to`` lines, hole cards only where a player shows them at the showdown.
 
 Writes ``<out>/<date>_gNN.txt`` (default ``$SU_DATA_DIR/<dataset>/hands``)
 and, next to that folder, ``ground_truth.json``, ``population.json`` and
@@ -38,7 +42,8 @@ from sudetect.sim.run import data_dir, simulate  # noqa: E402
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--dataset", default="sim_small", help="sim_small | sim_demo | custom (sizes in [sim.datasets])")
+    ap.add_argument("--dataset", default="sim_small",
+                    help="sim_small | sim_demo | sim_pf | custom (sizes in [sim.datasets])")
     ap.add_argument("--out", type=Path, default=None, help="hands folder (default $SU_DATA_DIR/<dataset>/hands)")
     ap.add_argument("--procs", type=int, default=max(1, (os.cpu_count() or 2) - 1), help="worker processes")
     ap.add_argument("--seed", type=int, default=None, help="overrides [sim] seed")
@@ -48,17 +53,25 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--days", type=int, default=None, help="override the dataset's number of days")
     ap.add_argument("--players", type=int, default=None, help="override the dataset's number of players")
     ap.add_argument("--no-write", action="store_true", help="play without writing files (calibration runs)")
+    ap.add_argument("--preflop-info", action="store_true",
+                    help="the planted superusers use the information preflop too ([sim.superuser] preflop_info)")
+    ap.add_argument("--mined", action="store_true",
+                    help="write the hands as an observer at the tables sees them: no 'Dealt to' lines, hole cards "
+                         "only where a player shows them at the showdown")
     args = ap.parse_args(argv)
 
-    overrides = {}
+    overrides: dict = {}
     if args.players is not None:
-        overrides = {"datasets": {args.dataset: {"n_players": args.players}}}
+        overrides["datasets"] = {args.dataset: {"n_players": args.players}}
+    if args.preflop_info:
+        overrides["superuser"] = {"preflop_info": True}
     cfg = load_sim_config(args.config, overrides)
     out = args.out
     if out is None and not args.no_write:
         out = data_dir() / args.dataset / "hands"
     result = simulate(cfg, args.dataset, out_dir=out, procs=args.procs, seed=args.seed, calibrate=args.calibrate,
-                      write=not args.no_write, target_hands=args.hands, n_days=args.days, log=print)
+                      write=not args.no_write, target_hands=args.hands, n_days=args.days, log=print,
+                      full_information=not args.mined)
     if result.out_dir is not None:
         print(f"hands in {result.out_dir}; ground truth in {result.out_dir.parent / 'ground_truth.json'}")
         print(f"{result.n_hands / max(result.seconds, 1e-9):,.0f} hands/s")

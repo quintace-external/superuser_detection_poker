@@ -13,7 +13,8 @@ WITH dec AS (
     SELECT d.hand_id, d.action_index, d.street, d.hole_cards, d.board_at_action, d.live_opponents
     FROM decisions AS d
     WHERE d.hole_cards IS NOT NULL
-      AND (d.street <> 'preflop' OR :include_preflop)
+      AND (d.street <> 'preflop'
+           OR (:include_preflop AND (:preflop_max_opp <= 0 OR d.n_live - 1 <= :preflop_max_opp)))
       AND d.hand_id BETWEEN :lo AND :hi
 ),
 opp AS (

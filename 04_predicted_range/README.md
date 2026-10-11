@@ -39,7 +39,17 @@ python 04_predicted_range/run.py --dataset article_sample --fit-from <full-infor
 
 # observer hand histories (cards only at the showdown) need the observer setting
 python 04_predicted_range/run.py --dataset <observer dataset> --steps fit --config $V/observer_fit.toml
+
+# preflop: equity against the field's range for the opponent's preflop line (after fit; step 05 reads it)
+python 04_predicted_range/preflop.py --dataset article_sample --fit-from <full-information dataset>
 ```
+
+`preflop.py` scores every preflop decision with one live opponent into `action_range_equity_pre`: the opponent's
+range is the prior of his preflop line so far (`rng_prior_pre`, the situation and action of his last preflop action
+and his position; levels P4 ... P0), the hero's cards removed, and the equity a Monte Carlo estimate
+(`[enrich] mc_samples`) shared by every decision with the same cards and line. An opponent who has not acted yet
+holds every hand (`prior_level = 'random'`). The prior is fitted on the hands that saw a flop, keyed by the last
+preflop line, so a 4-bet range comes from 4-bets that were called. About 40 seconds for 330,000 decisions.
 
 Stages: `fit` (field tables, or a copy of another dataset's tables with `--fit-from`, plus the dataset's own player
 tilts), `enrich` (score the decisions into `action_range_equity`), `leakage` (range bins against the real-card class
@@ -247,8 +257,8 @@ full-information fit; the commands are the same, with `--fit-from <that dataset>
 
 ## Output columns
 
-`action_range_equity`, one row per scored decision (by default the postflop rows of `hu_decisions` whose actor's
-cards are known):
+`action_range_equity`, one row per scored decision (by default the postflop rows of heads-up pots, at tables of any
+size, whose actor's cards are known; `[enrich] tables = "hu"` keeps two-player tables only):
 
 | column | type | meaning |
 |---|---|---|

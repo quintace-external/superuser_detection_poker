@@ -3,7 +3,9 @@
 
 [step02]
 backend = "numpy"              # numpy (default, numpy only) | pyrust (needs the optional package pyrust_poker)
-include_preflop = false        # also score preflop decisions: eq_vs_random from the exact table, eq_vs_real by MC
+include_preflop = true         # also score preflop decisions: eq_vs_random from the exact table, eq_vs_real by MC
+preflop_max_opp = 1            # ... only those with at most this many live opponents (1 = the heads-up
+                               # confrontations step 05 reads; 0 = every preflop decision, several times slower)
 seed = 20011                   # base seed of every Monte Carlo estimate; the same seed gives the same tables
 mc_samples = 4096              # MC deals per row where MC is used (flop vs a random hand, preflop rows); max 65,536
 flop_random_exact = false      # true: enumerate the flop vs a random hand as well (slower, see 02_equity/README.md)

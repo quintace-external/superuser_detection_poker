@@ -14,8 +14,9 @@ They describe the same hands at three levels of detail.
 | `actions` | action (posts included) | who did what, on which street, facing what, with which cards, and the price of the action |
 
 Amounts are in big blinds (`*_bb`), so tables with different stakes can be pooled. Cards are text, two characters
-per card (`AhKd`). `hands.cards_visibility` is `full` when every dealt player's hole cards are in the text (the
-operator's view) and `showdown` otherwise (an observer's view, where cards appear only at the showdown).
+per card (`AhKd`). `hands.cards_visibility` is `full` when the text has a `Dealt to` line for every dealt player (the
+operator's view) and `showdown` otherwise (an observer's view, where cards appear only at the showdown; cards shown
+there do not make a hand full).
 
 Key columns:
 
@@ -36,7 +37,10 @@ read, by file and reason (`loaded`, or the gate reason that dropped it). The ful
 `run.py` reads PokerStars-style text (`.txt` files, or `.txt` members of `.zip` archives), splits it into hands and
 parses each one with `sudetect/hhparse.py`. The grammar and the gate (the checks that drop a hand, each with a named
 reason) are documented at the top of that module. A hand that passes the gate is replayed action by action
-(`sudetect/replay.py`) into the three tables.
+(`sudetect/replay.py`) into the three tables. `docs/HAND_HISTORY_FORMAT.md` shows the layout line by line, what may
+vary, what each drop reason means and how to check a folder of your own; `data/sample_hands.txt` is a complete file
+in this layout. When no input file holds a hand header, `run.py` stops with exit code 2 before the warehouse is touched; when no
+hand is loaded, it exits with 1.
 
 ```
 python 01_action_table/run.py --dataset <name> --input <folder, glob or file> [--source operator|mined]
@@ -100,11 +104,13 @@ Two routes, in order of effort:
 
 `sql/invariants.sql` runs after every load (keys unique, action indexes contiguous, pots and stacks accumulate,
 no action after a fold, calls match the amount to call, money identity, VPIP matches the actions, ...). `run.py`
-exits with code 1 when one fails or a hand could not be replayed (`--allow-violations` reports and exits 0).
-Settings (gate switches, tolerances, batch size) are in `config/defaults.toml`, `[step01]`.
+exits with code 1 when one fails, a hand could not be replayed or no hand was loaded (`--allow-violations` reports
+the first two and exits 0), and with code 2, before the warehouse is touched, when an input does not exist or no hand
+of it passes the gate. Settings (gate switches, tolerances, batch size) are in `config/defaults.toml`, `[step01]`.
 
 ## Tests
 
 `python -m pytest -q 01_action_table/tests`: parser and gate cases, adversarial texts, positions, situations, the
-loader on randomly dealt legal hands, and the round trip of the bundled sample (JSON rows to text to tables, nets
-equal to the settlement).
+loader on randomly dealt legal hands, the round trip of the bundled sample (JSON rows to text to tables, nets
+equal to the settlement), and `docs/HAND_HISTORY_FORMAT.md` against the loader (its example hands, its drop table,
+the bundled sample, which loads in full).

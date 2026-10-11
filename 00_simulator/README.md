@@ -11,7 +11,11 @@ them, the pipeline never does.
 python 00_simulator/simulate.py --dataset sim_small                 # 60 players, 20 days, about 20,000 hands
 python 00_simulator/simulate.py --dataset sim_demo --procs 16       # 300 players, 60 days, about 400,000 hands
 python 00_simulator/simulate.py --dataset sim_demo --calibrate --hands 50000 --no-write
+python 00_simulator/simulate.py --dataset sim_small --mined        # the same hands as an observer records them
 ```
+
+`--mined` writes the same hands as an observer at the tables records them: no `Dealt to` lines, hole cards only where
+a player shows them at the showdown (`docs/HAND_HISTORY_FORMAT.md`). The answer key is the same as without it.
 
 Settings are in `config/sim.toml` (`[sim]`): table sizes and stakes, player archetypes and their jitter, session
 structure, the planted players (`kind`, the share `u` of decisions played with information, the victim's share of

@@ -88,8 +88,8 @@ def test_tilt_tables(warehouses):
 
 def test_range_equity_rows(warehouses):
     out = _q("t04", "SELECT * FROM action_range_equity")
-    staged = _q("t04", """SELECT count(*) AS n FROM hu_decisions
-                          WHERE street IN ('flop', 'turn', 'river') AND hole_cards IS NOT NULL""").n.iat[0]
+    staged = _q("t04", """SELECT count(*) AS n FROM decisions WHERE n_live = 2 AND
+                          street IN ('flop', 'turn', 'river') AND hole_cards IS NOT NULL""").n.iat[0]
     assert len(out) == staged > 50
     assert out.eq_vs_range.between(0, 1).all()
     assert (out.n_combos_opp > 0).all() and (out.n_combos_opp <= int(run04.load_config()["range"]["cap"])).all()
@@ -126,7 +126,8 @@ def test_showdown_only_data_needs_fit_from(warehouses):
     meta = _q("t04sd", "SELECT * FROM rng_meta").set_index("key").value
     assert meta["fit_dataset"] == "t04"
     rows = _q("t04sd", "SELECT count(*) AS n FROM action_range_equity").n.iat[0]
-    known = _q("t04sd", """SELECT count(*) AS n FROM hu_decisions WHERE street IN ('flop', 'turn', 'river')
+    known = _q("t04sd", """SELECT count(*) AS n FROM decisions WHERE n_live = 2
+                           AND street IN ('flop', 'turn', 'river')
                            AND hole_cards IS NOT NULL""").n.iat[0]
     assert rows == known
 
@@ -149,3 +150,16 @@ def test_library_defaults_are_the_config_file():
 
     assert RangeConfig() == RangeConfig.from_toml(run04.load_config())
 
+
+
+def test_preflop_range_equity(warehouses):
+    pre04 = load_script("step04_preflop", STEP_DIR / "preflop.py")
+    out = pre04.run("t04", run04.load_config(), log=lambda _m: None)
+    n = _q("t04", """SELECT count(*) AS n FROM decisions WHERE street = 'preflop' AND n_live = 2
+                     AND hole_cards IS NOT NULL""").n.iat[0]
+    assert len(out) == n > 20
+    assert out.eq_vs_range.between(0, 1).all()
+    acted = out.opp_situation.notna()
+    assert (out.prior_level[~acted] == "random").all()
+    assert out.prior_level[acted].isin(["P4", "P3", "P2", "P1", "P1m", "P0"]).all()
+    assert _q("t04", "SELECT count(*) AS n FROM action_range_equity_pre").n.iat[0] == len(out)

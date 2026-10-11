@@ -1,4 +1,11 @@
-"""Hand-by-hand HTML view of the suspicious hands (hand-history layout with a decision box per hand)."""
+"""Hand-by-hand HTML view of the suspicious hands (hand-history layout with a decision box per hand).
+
+Players are printed by the id the data gives them: ``result["uid_of"]`` (warehouse id -> the module's integer id,
+set by ``05_detection/adapter.py``) maps the module's numbers back; without it the module's ids are printed.
+``tabbed_hands_html`` puts several lists of hands on one page with a tab selector (a few lines of inline script; the
+first tab shows without it) and can name, next to an opponent's id, the pair he forms with the player
+(``labels``: id -> text, given for the player's victims only).
+"""
 from __future__ import annotations
 
 import html
@@ -36,6 +43,14 @@ def _cards(cards) -> str:
     return " ".join(out)
 
 
+def _secs(v) -> str:
+    """Seconds as '3s'; a dash when the data has no decision times."""
+    try:
+        return "–" if v is None or v != v else f"{float(v):.0f}s"
+    except (TypeError, ValueError):
+        return "–"
+
+
 def _fmt(v) -> str:
     return f"{v:,.0f}"
 
@@ -64,10 +79,24 @@ RANGE_CSS = """
 .rng table.grid{border-collapse:collapse;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;margin-top:6px}
 .rng pre.rtxt{font:11px/1.35 ui-monospace,Menlo,Consolas,monospace;background:var(--line);padding:6px 8px;border-radius:6px;overflow-x:auto;white-space:pre;margin:6px 0;max-width:100%}
 .rng table.grid td{width:30px;height:18px;text-align:center;border:1px solid var(--line);padding:0}
+.rng.sev-rare{--sev:#6a1b9a}
 """
 
+TAB_CSS = """
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0 6px;border-bottom:1px solid var(--line)}
+.tabs button{font:inherit;font-size:14px;color:var(--mut);background:none;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;padding:6px 14px;cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--fg);background:var(--card);font-weight:600}
+body[data-tab="postflop"] [data-tab="preflop"],body[data-tab="preflop"] [data-tab="postflop"]{display:none}
+.tag.pair{background:#ede7f6;color:#4527a0}
+"""
+TAB_JS = ("document.querySelectorAll('.tabs button').forEach(function(b){b.addEventListener('click',function(){"
+          "document.body.setAttribute('data-tab',b.getAttribute('data-show'));"
+          "document.querySelectorAll('.tabs button').forEach(function(x){x.setAttribute('aria-selected',String(x===b))})"
+          "})})")
+
 SEVERITY_LABELS = {"blatant": "BLATANT", "strong": "STRONG", "thin": "THIN", "context": "BLUFF",
-                   "raise": "RAISE / OVERBET", "agrees": "RANGE AGREES", "mistake": "PLAIN MISTAKE", "norange": "NO RANGE"}
+                   "raise": "RAISE / OVERBET", "agrees": "RANGE AGREES", "mistake": "PLAIN MISTAKE", "norange": "NO RANGE",
+                   "rare": "RARE IN THE POOL"}
 
 
 def _pct(v) -> str:
@@ -79,6 +108,14 @@ def _bar(label: str, v, pot_odds, cls: str = "fill") -> str:
     po = "" if pot_odds is None or pot_odds != pot_odds else f'<span class="po" style="left:{pot_odds * 100:.1f}%" title="pot odds"></span>'
     return (f'<span class="lab">{label}</span><span class="track"><span class="{cls}" style="width:{w:.1f}%"></span>{po}</span>'
             f'<span class="val">{_pct(v)}</span>')
+
+
+def _actual_text(r: dict) -> str:
+    """Where the opponent's real hand sits in his predicted range: "AQo: 2.5% of the range (#4 of 169)"."""
+    cls, share, rank = r.get("actual_class"), r.get("actual_share"), r.get("actual_rank")
+    if not share:
+        return f"Opponent's actual hand, {cls}: not in the predicted range."
+    return f"Opponent's actual hand, {cls}: {share:.1%} of the range (#{rank} of 169)."
 
 
 def _range_box(r: dict) -> str:
@@ -101,6 +138,8 @@ def _range_box(r: dict) -> str:
     top = r.get("top_classes") or []
     if top:
         out.append('<div class="chips">' + "".join(f'<span class="chip">{html.escape(c)} {w:.1%}</span>' for c, w in top) + "</div>")
+    if r.get("actual_class"):
+        out.append(f'<div class="meta">{html.escape(_actual_text(r))}</div>')
     grid, labels = r.get("grid"), r.get("grid_labels")
     if grid is not None and labels is not None:
         peak = max(max(row) for row in grid) or 1.0
@@ -126,7 +165,8 @@ def _range_box(r: dict) -> str:
         data = {"hand": r.get("hand_uid"), "opponent": r.get("opponent"), "equity_review": SEVERITY_LABELS.get(tier, tier),
                 "severity": r.get("severity"), "eq_vs_all_hands": r.get("eq_vs_all_hands"), "eq_vs_range": r.get("eq_vs_range"),
                 "eq_vs_real": r.get("eq_vs_real"), "pot_odds": po, "n_combos": r.get("n_combos"),
-                "n_effective": r.get("n_effective"),
+                "n_effective": r.get("n_effective"), "actual_class": r.get("actual_class"),
+                "actual_share": r.get("actual_share"), "actual_rank": r.get("actual_rank"),
                 "range_weights": {c: round(w, 6) for w, c in cells}}
         out.append('<script type="application/json" class="range-data">'
                    + json.dumps(data, ensure_ascii=False).replace("</", "<\\/") + "</script>")
@@ -134,7 +174,27 @@ def _range_box(r: dict) -> str:
     return "".join(out)
 
 
-def _hand_block(n: int, hand: Hand, row: pd.Series, uid: int, rng: dict | None = None) -> str:
+def _names(result: dict) -> dict:
+    """The module's integer id -> the id the data gives the player (``result["uid_of"]``); empty without it."""
+    return {u: p for p, u in (result.get("uid_of") or {}).items()}
+
+
+def _pair_tag(labels: dict | None, pid) -> str:
+    """The pair label next to an opponent's id: only for the ids in ``labels`` (the player's victims)."""
+    text = (labels or {}).get(str(pid))
+    return f' <span class="tag pair">{html.escape(text)}</span>' if text else ""
+
+
+def _hand_block(n: int, hand: Hand, row: pd.Series, uid: int, rng: dict | None = None, names: dict | None = None,
+                labels: dict | None = None, tab: str | None = None, anchor: str | None = None,
+                title: str = "NO.") -> str:
+    """One hand: tags, the actions street by street, the settlement, the decision box and the range box.
+
+    names: the module's id -> the printed id; labels: printed id -> pair text (the player's victims only); tab: the
+    page tab of the block (``data-tab``); anchor: the element id (default ``h{n}``); title: the text before n."""
+    def shown(u):
+        return names.get(u, u) if names else u
+
     label = row["decision_label"]
     tags = f'<span class="tag q{label.split()[0]}">{html.escape(label)}</span>'
     if row["snap_decision"]:
@@ -142,9 +202,10 @@ def _hand_block(n: int, hand: Hand, row: pd.Series, uid: int, rng: dict | None =
     tags += f'<span class="tag cat">{html.escape(row["category_name"])}</span>'
     t0 = pd.to_datetime(hand.start_ts, unit="s")
     t1 = pd.to_datetime(hand.end_ts, unit="s") if hand.end_ts and hand.end_ts > hand.start_ts else None
-    lines = [f'<div class="hand" id="h{n}"><h2>NO.{n} {tags}</h2>',
+    attrs = f' id="{anchor or f"h{n}"}"' + (f' data-tab="{tab}"' if tab else "")
+    lines = [f'<div class="hand"{attrs}><h2>{title}{n} {tags}</h2>',
              f'<div class="ln"><b>table:</b> {html.escape(hand.game_type)} &nbsp; hand:{html.escape(hand.hand_uid)}'
-             f' &nbsp; table no:{hand.table_no} &nbsp; blind:{_fmt(hand.blind)} &nbsp; ante:{_fmt(hand.ante)} &nbsp; players:{hand.n_players}</div>',
+             f' &nbsp; table no:{html.escape(str(hand.table_no))} &nbsp; blind:{_fmt(hand.blind)} &nbsp; ante:{_fmt(hand.ante)} &nbsp; players:{hand.n_players}</div>',
              f'<div class="ln"><b>time:</b> start {t0:%Y-%m-%d %H:%M:%S}'
              + (f' &nbsp; end {t1:%Y-%m-%d %H:%M:%S}' if t1 is not None else "") + " (UTC)</div>"]
     for st in STREETS:
@@ -156,9 +217,10 @@ def _hand_block(n: int, hand: Hand, row: pd.Series, uid: int, rng: dict | None =
         for a in hand.actions[st]:
             s = hand.seats.get(a.seat_no)
             me = ' class="me"' if a.uid == uid else ""
-            rows.append(f"<tr{me}><td>seat:{a.seat_no}</td><td>player:{a.uid}</td><td>stack:{_fmt(s.stake) if s else ''}</td>"
+            rows.append(f"<tr{me}><td>seat:{a.seat_no}</td><td>player:{html.escape(str(shown(a.uid)))}</td>"
+                        f"<td>stack:{_fmt(s.stake) if s else ''}</td>"
                         f"<td>{html.escape(s.label) if s else ''}</td><td>{_cards(s.hole) if s else ''}</td>"
-                        f'<td>{a.name}</td><td class="num">{_fmt(a.amount)}</td><td class="num tm">{a.time:.0f}s</td></tr>')
+                        f'<td>{a.name}</td><td class="num">{_fmt(a.amount)}</td><td class="num tm">{_secs(a.time)}</td></tr>')
         if rows:
             lines.append('<table class="act">' + "".join(rows) + "</table>")
         pot = hand.street_end_pot.get(st, 0)
@@ -167,24 +229,27 @@ def _hand_block(n: int, hand: Hand, row: pd.Series, uid: int, rng: dict | None =
     lines.append('<div class="st"><b><i>***settlement***</i></b></div>')
     for u, w in hand.settlement.items():
         me = " me" if u == uid else ""
-        lines.append(f'<div class="ln{me}">player:{u} &nbsp;|&nbsp; net:{w:+,.0f}</div>')
+        lines.append(f'<div class="ln{me}">player:{html.escape(str(shown(u)))}{_pair_tag(labels, shown(u))} '
+                     f'&nbsp;|&nbsp; net:{w:+,.0f}</div>')
+    opp = row.get("opponent_uid")
+    known = opp is not None and str(opp) != "" and (isinstance(opp, str) or not pd.isna(opp))
+    opp_line = f'<div><b>Opponent:</b> {html.escape(str(opp))}{_pair_tag(labels, opp)}</div>' if known else ""
     lines.append(
         f'<div class="decision"><div><b>{html.escape(label)}:</b> {html.escape(row["player_hand"] or "no made hand")} '
         f'against {html.escape(row["opponent_hand"] or "no made hand")}, equity at the decision {row["equity_at_decision"]:.0%}.</div>'
+        + opp_line +
         f'<div><b>Key action ({row["street"]}):</b> {html.escape(row["key_action"])} &nbsp; '
-        f'<b>decision time:</b> {row["decision_time_s"]:.0f}s</div>'
+        f'<b>decision time:</b> {_secs(row["decision_time_s"])}</div>'
         f'<div><b>Pot:</b> {row["pot_bb"]:.1f} bb &nbsp; <b>Player net:</b> {row["net_win"]:+,.0f}</div></div>'
         + (_range_box({**rng, "hand_uid": row["hand_uid"]}) if rng else "") + "</div>")
     return "\n".join(lines)
 
 
-def suspicious_hands_html(result: dict, ranges: dict | None = None, outside_scope: int = 0) -> str:
-    """ranges (optional): {hand_uid: dict} with eq_vs_all_hands, eq_vs_range, eq_vs_real, pot_odds, range_verdict,
-    opponent, n_combos, top_classes [(class, share)], grid / grid_labels (13 x 13). Without it the page is unchanged.
-    outside_scope: how many of the listed hands come from outside the analysed hands (multiway tables), counted apart."""
-    uid, sus, hands = result["player"], result["suspicious_hands"], result["hands"]
+def _summary_legend(result: dict, sus: pd.DataFrame, with_ranges: bool, outside_scope: int) -> tuple[str, str]:
+    """The summary lines (hands, suspicious share, escalation) and the legend box of a suspicious-hands page."""
     m, e = result["meta"], result["escalation"]
-    scope = f"hands against {result['opponent']}" if result["opponent"] else "all submitted hands"
+    uid = html.escape(str(_names(result).get(result["player"], result["player"])))
+    scope = f"hands against {html.escape(str(result['opponent']))}" if result["opponent"] else "all submitted hands"
     counts = sus["decision_label"].value_counts().to_dict() if not sus.empty else {}
     n_in = len(sus) - outside_scope
     summary = (f"<p>Player <b>{uid}</b>, {scope}. {m['hands_analysed']:,} hands analysed, "
@@ -201,7 +266,7 @@ def suspicious_hands_html(result: dict, ranges: dict | None = None, outside_scop
               "<b>⚡ Snap decision</b>: a Perfect decision made in ≤2 s with a pot of ≥30 bb. "
               f'<span class="muted">Label counts: {", ".join(f"{k}: {v}" for k, v in counts.items()) or "none"}. '
               "Rows for the analysed player are in red; amounts are as stored in the replay; times are UTC.</span></div>")
-    if ranges is not None:
+    if with_ranges:
         n_r = int((sus["category"] == "R").sum()) if not sus.empty else 0
         summary += (f"<p>{n_r} of the hands below are found only by the predicted-range rule (category R) and are "
                     "not counted above or in the escalation rule.</p>" if n_r else "")
@@ -209,9 +274,53 @@ def suspicious_hands_html(result: dict, ranges: dict | None = None, outside_scop
                                 "predicted from his actions, next to equity against all hands and against his real "
                                 "cards. <b>R</b> = a fold with range equity at least 24 points above the pot odds while "
                                 "drawing dead, or a call at least 20 points below the pot odds while ahead.</div>")
-    blocks = [_hand_block(i + 1, hands[r["hand_uid"]], r, uid, (ranges or {}).get(r["hand_uid"]))
+    return summary, legend
+
+
+def suspicious_hands_html(result: dict, ranges: dict | None = None, outside_scope: int = 0) -> str:
+    """ranges (optional): {hand_uid: dict} with eq_vs_all_hands, eq_vs_range, eq_vs_real, pot_odds, range_verdict,
+    opponent, n_combos, top_classes [(class, share)], grid / grid_labels (13 x 13). Without it the page is unchanged.
+    outside_scope: how many of the listed hands come from outside the analysed hands (multiway tables), counted apart."""
+    uid, sus, hands = result["player"], result["suspicious_hands"], result["hands"]
+    names = _names(result)
+    shown = html.escape(str(names.get(uid, uid)))
+    summary, legend = _summary_legend(result, sus, ranges is not None, outside_scope)
+    blocks = [_hand_block(i + 1, hands[r["hand_uid"]], r, uid, (ranges or {}).get(r["hand_uid"]), names)
               for i, (_, r) in enumerate(sus.iterrows())]
     body = "\n".join(blocks) if blocks else "<p>No suspicious hands found.</p>"
     return (f'<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            f"<title>Suspicious hands: player {uid}</title><style>{CSS}{RANGE_CSS if ranges is not None else ''}</style></head><body>"
-            f"<h1>Suspicious hands: player {uid}</h1>{summary}{legend}{body}</body></html>")
+            f"<title>Suspicious hands: player {shown}</title><style>{CSS}{RANGE_CSS if ranges is not None else ''}</style></head><body>"
+            f"<h1>Suspicious hands: player {shown}</h1>{summary}{legend}{body}</body></html>")
+
+
+def tabbed_hands_html(result: dict, tabs: list[dict], counted: pd.DataFrame, outside_scope: int = 0,
+                      labels: dict | None = None, top: str = "") -> str:
+    """Several lists of hands on one page behind a tab selector; the first tab is the default and shows without the
+    script, "All" shows every list.
+
+    tabs: [{"key", "label", "rows" (DataFrame in the suspicious-hands format), "boxes" ({hand_uid: range box}),
+    "intro" (HTML above the list), "title" (text before each block's number), "anchor" (prefix of the block ids)}].
+    counted: the hands of the package's rules (A-D, R and the multiway flags) for the summary line and the label
+    counts. top: HTML under the title. labels: printed id -> pair text, given for the player's victims only."""
+    uid, hands = result["player"], result["hands"]
+    names = _names(result)
+    shown = html.escape(str(names.get(uid, uid)))
+    summary, legend = _summary_legend(result, counted, True, outside_scope)
+    total = sum(len(t["rows"]) for t in tabs)
+    buttons = [(t["key"], f'{t["label"]} ({len(t["rows"]):,})') for t in tabs] + [("all", f"All ({total:,})")]
+    bar = ('<div class="tabs" role="tablist">'
+           + "".join(f'<button type="button" role="tab" data-show="{k}" aria-selected="{str(i == 0).lower()}">'
+                     f"{html.escape(text)}</button>" for i, (k, text) in enumerate(buttons)) + "</div>")
+    body = []
+    for t in tabs:
+        if t.get("intro"):
+            body.append(f'<div class="box" data-tab="{t["key"]}">{t["intro"]}</div>')
+        for i, (_, r) in enumerate(t["rows"].iterrows()):
+            body.append(_hand_block(i + 1, hands[r["hand_uid"]], r, uid, t["boxes"].get(r["hand_uid"]), names, labels,
+                                    t["key"], f'{t.get("anchor", "h")}{i + 1}', t.get("title", "NO.")))
+        if t["rows"].empty:
+            body.append(f'<p data-tab="{t["key"]}">No hands in this list.</p>')
+    return (f'<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            f"<title>Suspicious hands: player {shown}</title><style>{CSS}{RANGE_CSS}{TAB_CSS}</style></head>"
+            f'<body data-tab="{tabs[0]["key"]}"><h1>Suspicious hands: player {shown}</h1>{top}{summary}{legend}{bar}'
+            + "\n".join(body) + f"<script>{TAB_JS}</script></body></html>")

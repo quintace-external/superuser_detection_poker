@@ -45,12 +45,12 @@ def test_ten_handed_table_adds_utg_plus_three():
 def test_postflop_sequence_wraps_around_the_button():
     assert postflop_sequence([2, 5, 9], button_seat=5, max_seats=9) == [2, 0, 1]
     # dead button: the button seat is empty, the seat before it still acts last
-    assert postflop_sequence([3, 4, 5, 6, 7], button_seat=1, max_seats=7) == [0, 1, 2, 3, 4]
+    assert postflop_sequence([1, 2, 4, 5, 6], button_seat=3, max_seats=6) == [2, 3, 4, 0, 1]
 
 
 def test_dead_button_keeps_a_btn_label_and_is_flagged():
-    p = assign_positions([3, 4, 5, 6, 7], button_seat=1, max_seats=7, sb_player=0, bb_player=1)
-    assert p.labels == ("SB", "BB", "HJ", "CO", "BTN") and "dead_button" in p.flags
+    p = assign_positions([1, 2, 4, 5, 6], button_seat=3, max_seats=6, sb_player=2, bb_player=3)
+    assert p.labels == ("CO", "BTN", "SB", "BB", "HJ") and "dead_button" in p.flags
 
 
 def test_dead_small_blind_leaves_no_sb_label():
@@ -101,21 +101,21 @@ def test_heads_up_rows_label_the_button_btn_with_is_sb():
 def test_dead_button_hand_end_to_end():
     r = replay_text("""
         Hand #2002: Hold'em No Limit (0.50/1.00) - 2001/01/01 10:00:00 UTC
-        Table 'T01' 7-max Seat #1 is the button
-        Seat 3: P3 (100.00 in chips)
+        Table 'T02' 6-max Seat #3 is the button
+        Seat 2: P2 (100.00 in chips)
         Seat 4: P4 (100.00 in chips)
         Seat 5: P5 (100.00 in chips)
-        Seat 7: P7 (100.00 in chips)
-        P3: posts small blind 0.50
-        P4: posts big blind 1.00
+        Seat 6: P6 (100.00 in chips)
+        P4: posts small blind 0.50
+        P5: posts big blind 1.00
         *** HOLE CARDS ***
-        P5: folds
-        P7: folds
-        P3: folds
-        Uncalled bet (0.50) returned to P4
-        P4 collected 1.00 from pot
+        P6: folds
+        P2: folds
+        P4: folds
+        Uncalled bet (0.50) returned to P5
+        P5 collected 1.00 from pot
         *** SUMMARY ***
         Total pot 1.00 | Rake 0.00
     """)
-    assert [r.players[x]["position"] for x in ("P3", "P4", "P5", "P7")] == ["SB", "BB", "CO", "BTN"]
+    assert [r.players[x]["position"] for x in ("P4", "P5", "P6", "P2")] == ["SB", "BB", "CO", "BTN"]
     assert "DEAD_BUTTON" in r.hand["error_detail"] and not r.hand["error_flag"]

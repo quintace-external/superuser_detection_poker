@@ -1,16 +1,24 @@
 """Step 05, population screening: the article's scorecard, the range-adjusted test (method b), the screening
 stages 1-5 and the three scenarios (full table, single victim, onset), over every player of a dataset.
 
-Reads the tables of steps 01-04 through two queries in ``sql/`` and writes:
+Reads the tables of steps 01-04 through two queries in ``sql/`` (and the queries of ``sudetect/pairs.py`` and
+``sudetect/potsize.py``) and writes:
 
-* ``player_scores``: one row per player x time window (``all``, ``last30``, ``last15``) x scope (``hu_tables``):
-  volume and style, the scorecard, method (b), the Stage 1-2 flags, the win-rate runs percentile and the onset
-  changepoint (``all`` rows), the Stage 5 verdicts;
+* ``player_scores``: one row per player x time window (``all``, ``last30``, ``last15``) x scope (``flop_hu``:
+  heads-up confrontations at tables of any size, or ``hu_tables``: two-player tables only): volume and style, the
+  scorecard, method (b), the preflop and flop tests (``pf_*``, ``z_b_flop``, ``fl_e_disc``), the Stage 1-2 flags,
+  the street hits (``pf_hit``, ``fl_hit``, ``tr_hit``, ``street_hits``), the win-rate runs percentile and the onset
+  changepoint (``all`` rows), the Stage 5 verdicts (``esc_*``, ``review_street_tails``; ``all`` rows), the pair
+  summary (``victims_n``, ``best_pair_*``; ``all`` rows) and the observer metrics with their field ranks (``obs_*``,
+  over every hand of the dataset whatever the scope; ``all`` rows);
 * ``pair_scores``: ordered pairs (i -> j): the scorecard and the range-adjusted counters of i's decisions against
   j, the split test z_ij, the opponent-controlled residual eps_ij, the robust z, the BH q-value;
+* ``pair_outliers``: every ordered pair "A against B" of the whole dataset scored and ranked by ``sudetect/pairs.py``
+  (``field_rank`` of ``n_ranked``), with its pot-size columns;
 * ``window_scores``: weekly series per player (X_dead, X_win, S, z_b);
-* ``flagged_hands`` (Stages 3-4), ``escalations`` (Stage 5), ``report_meta`` (config hash, populations, counts
-  tested) and ``scored_decisions`` (the decision rows the metrics were computed on).
+* ``flagged_hands`` (Stages 3-4), ``escalations`` (Stage 5: the hand-test rule sets and ``street_tails``),
+  ``street_flags`` (the preflop and flop hand rules, reported, not escalated), ``report_meta`` (config hash,
+  populations, counts tested) and ``scored_decisions`` (the postflop decision rows the metrics were computed on).
 
 Usage::
 
@@ -44,7 +52,10 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from sudetect import metrics as M  # noqa: E402
+from sudetect import pairs as PA  # noqa: E402
+from sudetect import potsize as PO  # noqa: E402
 from sudetect import screening as S  # noqa: E402
+from sudetect import streets as ST  # noqa: E402
 from sudetect import warehouse  # noqa: E402
 
 SQL_DIR = HERE / "sql"
@@ -56,11 +67,19 @@ EMPTY_INPUTS = {
                      "CAST(NULL AS DOUBLE) AS eq_vs_real, CAST(NULL AS BOOLEAN) AS eq_real_known, "
                      "CAST(NULL AS DOUBLE) AS eq_vs_random WHERE FALSE",
     "action_range_equity": "SELECT CAST(NULL AS VARCHAR) AS hand_id, CAST(NULL AS SMALLINT) AS action_index, "
-                           "CAST(NULL AS DOUBLE) AS eq_vs_range WHERE FALSE"
+                           "CAST(NULL AS DOUBLE) AS eq_vs_range WHERE FALSE",
+    "action_range_equity_pre": "SELECT CAST(NULL AS VARCHAR) AS hand_id, CAST(NULL AS SMALLINT) AS action_index, "
+                               "CAST(NULL AS DOUBLE) AS eq_vs_range, CAST(NULL AS VARCHAR) AS opp_situation, "
+                               "CAST(NULL AS VARCHAR) AS opp_action, CAST(NULL AS VARCHAR) AS prior_level WHERE FALSE",
 }
+SCOPES = {"flop_hu": False, "hu_tables": True}   # scope -> the queries' :hu_tables_only
 DECISION_COLUMNS = ["hand_id", "action_index", "player_id", "opponent_id", "hand_date", "street", "action",
                     "facing", "bettor_q", "q", "r", "req", "rbin", "p_all", "y", "bluff_success", "pot_bb",
                     "faced_size_pot", "made_hand"]
+# pair_outliers: its first columns (all of them when no pair hand is found); the pair summary of player_scores
+PAIR_FIRST = ["A", "B", "time_window", "scope", "hands", "bb100", "sd_won", "k", "score", "field_rank", "n_ranked",
+              "top_pct"]
+PAIR_SUMMARY = ["victims_n", "best_pair_score", "best_pair_rank", "best_pair_opponent"]
 
 
 # --------------------------------------------------------------------------------------------- config and I/O
@@ -100,7 +119,9 @@ def _connect(dataset: str, read_only: bool, wait_s: float):
 
 
 def read_inputs(dataset: str, cfg: Mapping) -> dict[str, Any]:
-    """The two input queries as frames, plus the dataset's last hand date and the missing upstream tables."""
+    """The two input queries as frames, plus the dataset's last hand date and the missing upstream tables; the pair
+    hands and decisions of ``sudetect/pairs.py`` (``pair_rows``, ``pair_dec``) and the observer metrics of
+    ``sudetect/potsize.py`` (``observer``, one row per player of the dataset)."""
     con = _connect(dataset, True, float(cfg.get("retry_seconds", 600)))
     try:
         missing = []
@@ -108,12 +129,27 @@ def read_inputs(dataset: str, cfg: Mapping) -> dict[str, Any]:
             if not warehouse.table_exists(con, name):
                 warehouse.execute(con, f"CREATE TEMP VIEW {name} AS {sql}")
                 missing.append(name)
-        dec = warehouse.run_sql_file(con, SQL_DIR / "scored_decisions.sql")
-        hands = warehouse.run_sql_file(con, SQL_DIR / "player_hands.sql")
+        if cfg["scope"] not in SCOPES:
+            raise ValueError(f"step05.scope must be one of {sorted(SCOPES)}: {cfg['scope']!r}")
+        hu_only = SCOPES[cfg["scope"]]
+        dec = warehouse.run_sql_file(con, SQL_DIR / "scored_decisions.sql", hu_tables_only=hu_only)
+        hands = warehouse.run_sql_file(con, SQL_DIR / "player_hands.sql", hu_tables_only=hu_only)
         max_date = warehouse.query_df(con, "SELECT max(hand_date) AS d FROM hands")["d"].iloc[0]
+        po = cfg.get("pair_outliers", {})
+        pair_rows, pair_dec = PA.load_inputs(con, showdown_only=bool(po.get("showdown_only", False)),
+                                             big_pot=PA.PairConfig.from_toml(po).big_pot)
+        observer = PO.player_metrics(con, **observer_settings(cfg)[0])
     finally:
         con.close()
-    return {"dec": dec, "hands": hands, "max_date": pd.Timestamp(max_date), "missing": missing}
+    return {"dec": dec, "hands": hands, "max_date": pd.Timestamp(max_date), "missing": missing,
+            "pair_rows": pair_rows, "pair_dec": pair_dec, "observer": observer}
+
+
+def observer_settings(cfg: Mapping) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The ``[step05.observer]`` keys as keyword arguments: (for ``potsize.player_metrics``, for ``field_ranks``)."""
+    kw = PO.from_config(cfg.get("observer"))
+    ranks = {k: kw.pop(k) for k in ("min_hands", "min_cases")}
+    return kw, ranks
 
 
 def write_outputs(dataset: str, frames: Mapping[str, pd.DataFrame], cfg: Mapping) -> None:
@@ -157,6 +193,21 @@ def prepare_decisions(dec: pd.DataFrame, cfg: Mapping) -> pd.DataFrame:
         d.loc[m, "pair_full"] = full >= 1
     d["pair_full"] = d["pair_full"].astype(bool)
     d["rbin"] = M.range_bin(d["r"], int(cfg["method_b"]["range_bins"]))
+    return d
+
+
+def prepare_preflop(pre: pd.DataFrame) -> pd.DataFrame:
+    """Typed flags of the preflop rows (one live opponent); no hand tiers, no range decile of method (b)."""
+    d = pre.copy()
+    d["hand_date"] = pd.to_datetime(d["hand_date"])
+    d["started_at"] = pd.to_datetime(d["started_at"])
+    for c in ("facing", "bluff_success", "is_allin"):
+        d[c] = M.flag(d[c])
+    for c in ("q", "q_random", "r", "req", "bettor_q", "pot_bb", "decision_s", "faced_size_pot"):
+        d[c] = pd.to_numeric(d[c], errors="coerce").astype(float)
+    d["is_fold"] = d["action"] == "fold"
+    d["is_cont"] = d["action"].isin(["call", "raise"])
+    d["is_aggr"] = d["action"].isin(["bet", "raise"])
     return d
 
 
@@ -220,15 +271,24 @@ def method_b(resp: pd.DataFrame, keys: list[str], cfg: Mapping) -> tuple[pd.Data
     return out.merge(ev, on=keys, how="left"), dd, dw, n_el
 
 
-def player_windows(dec: pd.DataFrame, hands: pd.DataFrame, max_date: pd.Timestamp,
+def main_table_class(hands: pd.DataFrame) -> pd.DataFrame:
+    """Each player's table class with the most hands (ties: 'hu' before '3-6' before '7+')."""
+    n = hands.groupby(["player_id", "table_class"]).size().rename("n").reset_index()
+    n["o"] = n["table_class"].map({"hu": 0, "3-6": 1, "7+": 2})
+    n = n.sort_values(["player_id", "n", "o"], ascending=[True, False, True], kind="mergesort")
+    return n.drop_duplicates("player_id")[["player_id", "table_class"]]
+
+
+def player_windows(dec: pd.DataFrame, pre: pd.DataFrame, hands: pd.DataFrame, max_date: pd.Timestamp,
                    cfg: Mapping, meta: list) -> tuple[pd.DataFrame, dict]:
-    """One row per player x window: volume, style, scorecard, method (b)."""
+    """One row per player x window: volume, style, scorecard, method (b), the preflop and flop tests."""
     rows, tables = [], {}
     mb = cfg["method_b"]
     for w in cfg["time_windows"]:
         lo = window_start(max_date, w, cfg)
         dw, hw = _in_window(dec, lo), _in_window(hands, lo)
         base = M.hand_stats(hw, ["player_id"], vpip_excludes_walks=bool(cfg["scorecard"]["vpip_excludes_walks"]))
+        base = base.merge(main_table_class(hw), on="player_id", how="left")
         card = scorecard_frame(dw, ["player_id"], cfg)
         ptab = M.fit_expected_fold(_responses(dw))
         tables[w] = ptab
@@ -237,7 +297,11 @@ def player_windows(dec: pd.DataFrame, hands: pd.DataFrame, max_date: pd.Timestam
         e = rb["rb_eligible"]
         rb["e_disc_pct"] = M.midrank_pct(rb["e_disc"].where(e))
         rb["z_b_pct"] = M.midrank_pct(rb["z_b"].where(e))
-        p = base.merge(card, on="player_id", how="left").merge(rb, on="player_id", how="left")
+        st, st_meta = ST.player_scores(_in_window(pre, lo), dw, cfg)
+        p = (base.merge(card, on="player_id", how="left").merge(rb, on="player_id", how="left")
+             .merge(st, on="player_id", how="left"))
+        for c in ("pf_eligible", "pf_screen", "fl_eligible", "fl_screen"):
+            p[c] = p[c].fillna(False).astype(bool)
         p.insert(1, "time_window", w)
         p.insert(2, "scope", cfg["scope"])
         p["window_from"] = lo if lo is not None else hw["hand_date"].min()
@@ -246,6 +310,7 @@ def player_windows(dec: pd.DataFrame, hands: pd.DataFrame, max_date: pd.Timestam
         meta += [("delta_dead", w, dd, ""), ("delta_win", w, dlw, ""), ("players_rb_eligible", w, n_el, ""),
                  ("players_with_hands", w, len(base), ""), ("responses_method_b", w, len(resp), ""),
                  ("decisions_scorecard", w, len(dw), "")]
+        meta += [(k, w, float(v), "") for k, v in st_meta.items()]
     return pd.concat(rows, ignore_index=True), tables
 
 
@@ -323,16 +388,91 @@ def pair_scores(dec: pd.DataFrame, hands: pd.DataFrame, max_date: pd.Timestamp, 
     return pd.concat(out, ignore_index=True)
 
 
+def pair_outliers(inp: Mapping[str, Any], hands: pd.DataFrame, cfg: Mapping, meta: list) -> pd.DataFrame:
+    """Pair outliers (``sudetect/pairs.py``): every ordered pair "A against B" of the whole dataset (window ``all``),
+    its parts, score, ``field_rank`` among the ranked pairs (``n_ranked``) and pot-size columns.
+
+    The pair hands and decisions are those of ``pairs.load_inputs`` (the two players who stayed in longest, at any
+    table size) kept to the screen's hands: standard hands without errors, and two-player tables only under the scope
+    ``hu_tables``."""
+    pc = PA.PairConfig.from_toml(cfg.get("pair_outliers"))
+    rows, dec = inp.get("pair_rows"), inp.get("pair_dec")
+    keep = hands["hand_id"].unique()
+    rows = rows[rows["hand_id"].isin(keep)] if rows is not None else pd.DataFrame()
+    if rows.empty:
+        t = pd.DataFrame(columns=PAIR_FIRST)
+    else:
+        dec = dec[dec["hand_id"].isin(keep)]
+        t = PA.pair_table(rows, dec, pc)
+        t.insert(2, "time_window", "all")
+        t.insert(3, "scope", cfg["scope"])
+    n = int(t["n_ranked"].iloc[0]) if len(t) else 0
+    meta.append(("pairs_ranked", "all", float(n), f"of {len(t)} ordered pairs; score parts "
+                                                  f"{','.join(pc.score_parts)}; ranked with 2+ parts"))
+    return t
+
+
+def pair_summary(pair_out: pd.DataFrame, cfg: Mapping) -> pd.DataFrame:
+    """Per player as A: ``victims_n`` (his victims, ``sudetect.pairs.victims``) and his top ranked pair
+    (``best_pair_score``, ``best_pair_rank``, ``best_pair_opponent``); players without a ranked pair are absent."""
+    pc = PA.PairConfig.from_toml(cfg.get("pair_outliers"))
+    ranked = pair_out[pair_out["k"] >= 2] if len(pair_out) else pair_out
+    if ranked.empty:
+        return pd.DataFrame(columns=["player_id"] + PAIR_SUMMARY)
+    best = ranked.sort_values(["A", "score"], ascending=[True, False], kind="mergesort").drop_duplicates("A")
+    out = pd.DataFrame({"player_id": best["A"].to_numpy(object), "best_pair_score": best["score"].to_numpy(float),
+                        "best_pair_rank": best["field_rank"].to_numpy(float),
+                        "best_pair_opponent": best["B"].to_numpy(object)})
+    cand = ranked[ranked["score"] >= pc.victim_min_score]        # only these can be victims; victims() decides
+    n = {a: len(PA.victims(g, a, pc)) for a, g in cand.groupby("A", sort=False)}
+    out["victims_n"] = out["player_id"].map(n).fillna(0).astype(np.int64)
+    return out[["player_id"] + PAIR_SUMMARY]
+
+
+def add_pair_summary(players: pd.DataFrame, pair_out: pd.DataFrame, cfg: Mapping, meta: list) -> pd.DataFrame:
+    """player_scores with :func:`pair_summary` on its ``all`` rows: ``victims_n`` is 0 for a player without a ranked
+    pair, NA on the other windows like the rest of the summary."""
+    out = players.merge(pair_summary(pair_out, cfg).assign(time_window="all"), on=["player_id", "time_window"],
+                        how="left")
+    allw = out["time_window"] == "all"
+    out["victims_n"] = out["victims_n"].astype("Float64").fillna(0).where(allw).astype("Int64")
+    out = out.astype({"best_pair_score": float, "best_pair_rank": float, "best_pair_opponent": "string"})
+    v = out.loc[allw, "victims_n"]
+    meta.append(("pairs_victims", "all", float(v.sum()), f"players with a victim: {int((v > 0).sum())}"))
+    return out
+
+
+def observer_columns(players: pd.DataFrame, obs: Optional[pd.DataFrame], cfg: Mapping, meta: list) -> pd.DataFrame:
+    """The observer metrics of ``sudetect/potsize.py`` and their field ranks on the ``all`` rows of player_scores.
+
+    They need no hidden cards and are counted over every hand of the dataset, whatever the scope; the field ranks are
+    among the players with at least ``observer.min_hands`` hands and, for a rate, ``observer.min_cases`` cases."""
+    if obs is None:
+        return players
+    ranks = observer_settings(cfg)[1]
+    m = PO.field_ranks(obs, **ranks).rename_axis("player_id").reset_index()
+    meta.append(("players_observer_ranked", "all", float((obs["obs_hands"] >= ranks["min_hands"]).sum()),
+                 f"min_hands={ranks['min_hands']}, min_cases={ranks['min_cases']}"))
+    counts = [c for c in m.columns if pd.api.types.is_integer_dtype(m[c])]     # hands, cases, players ranked
+    out = players.merge(m.assign(time_window="all"), on=["player_id", "time_window"], how="left")
+    out[counts] = out[counts].astype("Int64")                                    # stay integers next to NA
+    return out
+
+
 def compute(inp: Mapping[str, Any], cfg: Mapping) -> dict[str, pd.DataFrame]:
-    """Every output table from the two input frames."""
+    """Every output table from the inputs of :func:`read_inputs` (without ``pair_rows`` or ``observer``, the table
+    ``pair_outliers`` is empty and player_scores has no ``obs_*`` columns)."""
     impl = importlib.import_module(cfg["impl"]["module"])
-    dec = prepare_decisions(inp["dec"], cfg)
+    raw = inp["dec"]
+    pre = prepare_preflop(raw[raw["street"] == "preflop"])
+    dec = prepare_decisions(raw[raw["street"] != "preflop"], cfg)
     hands = prepare_hands(inp["hands"])
+    hands_hu = hands[hands["opponent_id"].notna()]
     max_date = inp["max_date"]
     meta: list = [("dataset_last_date", "", math.nan, str(max_date.date())),
                   ("missing_inputs", "", float(len(inp["missing"])), ",".join(inp["missing"]))]
 
-    players, tables = player_windows(dec, hands, max_date, cfg, meta)
+    players, tables = player_windows(dec, pre, hands, max_date, cfg, meta)
     players = impl.screen(players, cfg)
     deltas = {w: (_meta_value(meta, "delta_dead", w), _meta_value(meta, "delta_win", w))
               for w in cfg["time_windows"]}
@@ -345,14 +485,24 @@ def compute(inp: Mapping[str, Any], cfg: Mapping) -> dict[str, pd.DataFrame]:
 
     dec_p = M.attach_expected(dec, tables["all"]).rename(columns={"p": "p_all", "p_n": "p_all_n"})
     flagged = impl.flag_hands(dec_p, cfg)
-    esc = impl.escalate(flagged, hands, cfg)
+    esc = impl.escalate(flagged, hands_hu, cfg)       # the last 15 days of his heads-up hands
     if not esc.empty:
         wide = esc.assign(col="esc_" + esc["rule_set"] + "_" + esc["rule"]).pivot_table(
             index="player_id", columns="col", values="escalate", aggfunc="first")
         wide = wide.astype(bool).reset_index().assign(time_window="all")
         players = players.merge(wide, on=["player_id", "time_window"], how="left")
+    players = S.street_tails(players, cfg)            # the rule set street_tails, its verdicts on the all rows
+    tails = S.street_tails_escalations(players, hands, cfg)
+    if len(tails):
+        esc = pd.concat([esc, tails], ignore_index=True) if len(esc) else tails
+
+    pair_out = pair_outliers(inp, hands, cfg, meta)
+    players = add_pair_summary(players, pair_out, cfg, meta)
+    players = observer_columns(players, inp.get("observer"), cfg, meta)
 
     pairs = pair_scores(dec, hands, max_date, tables, deltas, cfg, meta)
+    street_flags = ST.flag_streets(pre, dec, cfg)
+    st = S.street_tails_settings(cfg)
 
     for w in cfg["time_windows"]:
         p = players[players["time_window"] == w]
@@ -362,7 +512,12 @@ def compute(inp: Mapping[str, Any], cfg: Mapping) -> dict[str, pd.DataFrame]:
                  ("players_stage1_p95_3of5", w, int(p["s1_p95"].sum()), ""),
                  ("players_stage2_flag", w, int(p["s2_flag"].sum()), cfg["screening"]["stage2_basis"]),
                  ("players_z_b_screen", w, int(p["rb_screen"].fillna(False).sum()),
-                  f"z_b >= {cfg['method_b']['z_b_screen']}")]
+                  f"z_b >= {cfg['method_b']['z_b_screen']}"),
+                 ("players_pf_screen", w, int(p["pf_screen"].sum()), f"pf_z >= {cfg['preflop']['z_screen']}"),
+                 ("players_flop_screen", w, int(p["fl_screen"].sum()), f"z_b_flop >= {cfg['flop']['z_screen']}"),
+                 ("players_street_tails", w, int((p["street_hits"] >= int(st["escalate_min_hits"])).sum()),
+                  f"street_hits >= {st['escalate_min_hits']}; hits pf={int(p['pf_hit'].sum())}, "
+                  f"fl={int(p['fl_hit'].sum())}, tr={int(p['tr_hit'].sum())}")]
     for rs in cfg["hand_tests"]["rule_sets"]:
         f = flagged[flagged["rule_set"] == rs]
         meta.append(("flagged_hands", rs, len(f), ",".join(f"{c}={n}" for c, n in
@@ -370,8 +525,15 @@ def compute(inp: Mapping[str, Any], cfg: Mapping) -> dict[str, pd.DataFrame]:
         for rule in ("article_fixed", "population_calibrated"):
             e = esc[(esc["rule_set"] == rs) & (esc["rule"] == rule)]
             meta.append((f"escalations_{rule}", rs, int(e["escalate"].sum()), f"of {len(e)} players"))
+    e = esc[esc["rule_set"] == "street_tails"]
+    review = players.loc[players["time_window"] == "all", "review_street_tails"].fillna(False)
+    meta.append(("escalations_several_streets", "street_tails", int(e["escalate"].sum()),
+                 f"of {len(e)} players; review (street_hits >= {st['review_min_hits']}) {int(review.sum())}"))
+    meta.append(("street_flags", "", float(len(street_flags)), ",".join(
+        f"{c}={n}" for c, n in street_flags["rule"].value_counts().sort_index().items())))
     meta.append(("players_runs_field", "all", float(len(runs)), f"run_length={cfg['runs']['run_length']}"))
     meta.append(("config_hash", "", math.nan, config_hash(cfg)))
+    meta.append(("config_json", "", math.nan, json.dumps(cfg, default=str)))   # what run.py reads back
     report_meta = pd.DataFrame(meta, columns=["item", "scope", "value", "text"])
     report_meta["value"] = report_meta["value"].astype(float)
 
@@ -379,8 +541,9 @@ def compute(inp: Mapping[str, Any], cfg: Mapping) -> dict[str, pd.DataFrame]:
     for c in DECISION_COLUMNS:
         if c not in decisions.columns:
             decisions[c] = np.nan
-    return {"player_scores": players, "pair_scores": pairs, "window_scores": weeks, "flagged_hands": flagged,
-            "escalations": esc, "report_meta": report_meta, "scored_decisions": decisions[DECISION_COLUMNS]}
+    return {"player_scores": players, "pair_scores": pairs, "pair_outliers": pair_out, "window_scores": weeks,
+            "flagged_hands": flagged, "escalations": esc, "street_flags": street_flags, "report_meta": report_meta,
+            "scored_decisions": decisions[DECISION_COLUMNS]}
 
 
 def _meta_value(meta: list, item: str, scope: str) -> float:
@@ -389,7 +552,8 @@ def _meta_value(meta: list, item: str, scope: str) -> float:
 
 def summary(frames: Mapping[str, pd.DataFrame]) -> str:
     m = frames["report_meta"]
-    lines = [f"{r.item:28s} {r.scope:18s} {'' if pd.isna(r.value) else round(r.value, 4)!s:>10s}  {r.text}"
+    lines = [f"{r.item:28s} {r.scope:18s} {'' if pd.isna(r.value) else round(r.value, 4)!s:>10s}  "
+             + ("(stored in report_meta)" if r.item == "config_json" else str(r.text))
              for r in m.itertuples(index=False)]
     lines += [f"{k}: {len(v)} rows" for k, v in frames.items() if k != "report_meta"]
     return "\n".join(lines)

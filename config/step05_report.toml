@@ -1,0 +1,51 @@
+# Step 05, the per-suspect report (05_detection/run.py): the rare preflop and flop decisions of the suspicious-hands
+# page and the minimum samples of the report's metrics table. Read with tomllib; --report-config passes a file whose
+# [report] keys override these. The rules of the population screen live in config/step05_screening.toml.
+# The reference field F is --field-dataset (default: the dataset itself). q = equity against the opponent's real
+# cards, r = equity against his predicted range (his line), req = pot odds B / (P + 2B).
+
+[report]
+top_hands = 25                   # rare decisions per tab (preflop, flop), the most rare first; --top-hands overrides
+pairs_max_hands = 500000         # F has no pair_outliers table: compute the pairs here only when F has at most this
+                                 # many hands (sudetect/pairs.py), otherwise the pairs section says to run screen.py
+show_field_size = true           # false: the field's size never appears (no "Players ranked", no "of N" in pair
+                                 # labels, no n_ranked / players_ranked in the CSVs) and none of the field's own
+                                 # player ids (pairs_victims.csv keeps only "opponent", metrics_summary.csv drops
+                                 # best_other_id): for a report published from a private field
+
+[report.rare]                    # rare decisions: the real cards made the decision right and the pool rarely makes it
+                                 # at the same strength. Pool = every other player of F, one live opponent only:
+                                 # preflop P(action | situation, band of r), flop P(fold or continue | band of r)
+                                 # facing a bet. Score = -ln(max(p, p_floor)); the best decision per hand
+pre_bins = 20                    # preflop bands of r: min(19, floor(20 r))
+flop_bins = 10                   # flop bands of r: min(9, floor(10 r))
+min_pool = 30                    # a band of the pool counts only with at least this many decisions
+facing = ["vs_open", "vs_3bet", "vs_4bet_plus"]   # preflop situations that face a raise
+pre_fold_q_max = 0.40            # preflop fold facing a raise: q below this and below the pot odds ...
+pre_fold_p_max = 0.50            # ... where the pool folds less often than this
+pre_raise_q_min = 0.55           # preflop raise (opens included): q at least this ...
+pre_raise_p_max = 0.30           # ... where the pool raises less often than this
+pre_call_q_min = 0.55            # preflop call facing a raise: q at least this ...
+pre_call_p_max = 0.30            # ... where the pool calls less often than this
+flop_fold_q_max = 0.20           # flop fold facing a bet: q below this ...
+flop_fold_p_max = 0.50           # ... where the pool folds less often than this
+flop_call_q_min = 0.50           # flop call facing a bet: q at least this ...
+flop_call_p_max = 0.30           # ... where the pool continues (call or raise) less often than this
+p_floor = 0.005                  # the score's floor on p: a decision nobody in the pool makes scores -ln(0.005)
+perfect_p = 0.05                 # tag "Perfect": the pool does it less often than this
+good_p = 0.15                    # tag "Good": less often than this; "Average" otherwise
+
+[report.metrics]                 # "Metrics by street": the eligible players of F's player_scores (window "all")
+pf_min_behind = 20               # preflop rows: responses to a raise behind (q < 0.40) at least this ...
+pf_min_ahead = 20                # ... and ahead (q >= 0.55) at least this
+light_reraises_min = 10          # light re-raise success: at least this many light re-raises
+reraises_min = 5                 # 3-bet, 4-bet and 5-bet success: at least this many of each
+flop_min_dead = 15               # flop rows: flop responses behind (q < 0.20) at least this ... (the floor of the
+                                 # street-tails flop rule, so the table and the verdict agree)
+flop_min_win = 15                # ... and winning (q >= 0.5) at least this
+tr_min_dead = 20                 # turn + river rows: dead responses (q < 0.02) at least this ...
+tr_min_win = 20                  # ... and winning ones (q >= 0.5) at least this
+
+[report.scorecard]               # "Article scorecard": the article's seven signals against F
+min_n = 20                       # a player enters the field percentile and median with this many qualifying decisions
+top_winners = 10                 # the reference group: this many biggest winners of F (net bb), the suspect left out

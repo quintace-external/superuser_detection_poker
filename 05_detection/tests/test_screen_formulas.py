@@ -203,39 +203,70 @@ def test_escalation_rules():
 
 
 def tiny_warehouse():
+    """H1, H2: heads-up table. H3: three dealt, two see the flop. H4: three see the flop. H5: three dealt, a
+    3-bet pot that ends preflop after the third player folded."""
     con = warehouse.connect(":memory:")
-    acts = [  # hand, index, player, street, action, q
-        ("H1", 1, "P1", "preflop", "raise", None), ("H1", 2, "P2", "preflop", "call", None),
-        ("H1", 10, "P1", "flop", "bet", 0.3), ("H1", 11, "P2", "flop", "fold", 0.7),
-        ("H2", 20, "P1", "turn", "check", 0.6), ("H2", 21, "P2", "turn", "bet", 0.4),
-        ("H2", 22, "P1", "turn", "raise", 0.6), ("H2", 23, "P2", "turn", "call", 0.4),
+    acts = [  # hand, index, player, street, action, q, live opponents (n_live = 1 + their number)
+        ("H1", 1, "P1", "preflop", "raise", None, ["P2"]), ("H1", 2, "P2", "preflop", "call", None, ["P1"]),
+        ("H1", 10, "P1", "flop", "bet", 0.3, ["P2"]), ("H1", 11, "P2", "flop", "fold", 0.7, ["P1"]),
+        ("H2", 20, "P1", "turn", "check", 0.6, ["P2"]), ("H2", 21, "P2", "turn", "bet", 0.4, ["P1"]),
+        ("H2", 22, "P1", "turn", "raise", 0.6, ["P2"]), ("H2", 23, "P2", "turn", "call", 0.4, ["P1"]),
+        ("H3", 30, "P3", "preflop", "raise", None, ["P1", "P2"]), ("H3", 31, "P1", "preflop", "call", None, ["P2", "P3"]),
+        ("H3", 32, "P2", "preflop", "fold", None, ["P1", "P3"]),
+        ("H3", 33, "P3", "flop", "bet", 0.8, ["P1"]), ("H3", 34, "P1", "flop", "call", 0.2, ["P3"]),
+        ("H4", 40, "P1", "flop", "bet", 0.5, ["P2", "P3"]), ("H4", 41, "P2", "flop", "fold", 0.1, ["P1", "P3"]),
+        ("H4", 42, "P3", "flop", "call", 0.4, ["P1"]), ("H4", 43, "P1", "turn", "bet", 0.6, ["P3"]),
+        ("H5", 50, "P1", "preflop", "raise", 0.3, ["P2", "P3"]), ("H5", 51, "P2", "preflop", "fold", 0.2, ["P1", "P3"]),
+        ("H5", 52, "P3", "preflop", "raise", 0.7, ["P1"]), ("H5", 53, "P1", "preflop", "fold", 0.3, ["P3"]),
     ]
+    hu = {"H1", "H2"}
     warehouse.execute(con, """CREATE TABLE actions (hand_id VARCHAR, action_index SMALLINT, player_id VARCHAR,
         street VARCHAR, action VARCHAR, is_hu_table BOOLEAN, is_post BOOLEAN, n_live SMALLINT, hand_date DATE,
         is_allin BOOLEAN, decision_s DOUBLE, hole_cards VARCHAR, board_at_action VARCHAR, made_hand VARCHAR,
-        pot_odds DOUBLE, pot_before_bb DOUBLE, to_call_bb DOUBLE, faced_size_pot DOUBLE)""")
-    for h, i, p, s, a, _ in acts:
-        warehouse.execute(con, "INSERT INTO actions VALUES (:h, :i, :p, :s, :a, TRUE, FALSE, 2, DATE '2001-01-01', "
-                          "FALSE, NULL, 'AhKd', NULL, 'nothing', NULL, 1.0, 0.0, NULL)", h=h, i=i, p=p, s=s, a=a)
-    warehouse.execute(con, "CREATE VIEW hu_decisions AS SELECT * FROM actions WHERE is_hu_table AND n_live = 2")
-    warehouse.execute(con, "CREATE TABLE hands AS SELECT * FROM (VALUES ('H1', TIMESTAMP '2001-01-01 10:00', 3.0), "
-                      "('H2', TIMESTAMP '2001-01-01 10:01', 9.0)) t(hand_id, started_at, final_pot_bb)")
-    warehouse.execute(con, "CREATE TABLE hand_players AS SELECT * FROM (VALUES "
-                      "('H1', 'P1', 'AhKd', FALSE, FALSE), ('H1', 'P2', '7c2d', FALSE, FALSE), "
-                      "('H2', 'P1', 'AhKd', TRUE, TRUE), ('H2', 'P2', '7c2d', TRUE, FALSE)) "
-                      "t(hand_id, player_id, hole_cards, went_to_showdown, won_at_showdown)")
-    eq = pd.DataFrame([(h, i, q, True, 0.5) for h, i, _, _, _, q in acts if q is not None],
+        pot_odds DOUBLE, pot_before_bb DOUBLE, to_call_bb DOUBLE, faced_size_pot DOUBLE,
+        live_opponents STRUCT(player_id VARCHAR)[], situation VARCHAR, position VARCHAR, hand_class VARCHAR)""")
+    for h, i, p, s, a, _, opp in acts:
+        warehouse.execute(con, "INSERT INTO actions VALUES (:h, :i, :p, :s, :a, :hu, FALSE, :n, DATE '2001-01-01', "
+                          "FALSE, NULL, 'AhKd', NULL, 'nothing', NULL, 1.0, 0.0, NULL, "
+                          "list_transform(string_split(:opp, ','), x -> {'player_id': x}), NULL, NULL, 'AKo')",
+                          h=h, i=i, p=p, s=s, a=a, hu=h in hu, n=len(opp) + 1, opp=",".join(opp))
+    warehouse.execute(con, "CREATE VIEW decisions AS SELECT * FROM actions")
+    warehouse.execute(con, "CREATE TABLE hands AS SELECT * FROM (VALUES "
+                      "('H1', TIMESTAMP '2001-01-01 10:00', 3.0, 2), ('H2', TIMESTAMP '2001-01-01 10:01', 9.0, 2), "
+                      "('H3', TIMESTAMP '2001-01-01 10:02', 9.0, 3), ('H4', TIMESTAMP '2001-01-01 10:03', 9.0, 3), "
+                      "('H5', TIMESTAMP '2001-01-01 10:04', 9.0, 3)) t(hand_id, started_at, final_pot_bb, n_dealt)")
+    players = [("H1", "P1", True), ("H1", "P2", True), ("H2", "P1", True), ("H2", "P2", True),
+               ("H3", "P1", True), ("H3", "P2", False), ("H3", "P3", True),
+               ("H4", "P1", True), ("H4", "P2", True), ("H4", "P3", True),
+               ("H5", "P1", False), ("H5", "P2", False), ("H5", "P3", False)]
+    warehouse.insert_df(con, "hand_players", pd.DataFrame(
+        [(h, p, "AhKd" if p == "P1" else "7c2d", False, False, f) for h, p, f in players],
+        columns=["hand_id", "player_id", "hole_cards", "went_to_showdown", "won_at_showdown", "saw_flop"]))
+    eq = pd.DataFrame([(h, i, q, True, 0.5) for h, i, _, _, _, q, _ in acts if q is not None],
                       columns=["hand_id", "action_index", "eq_vs_real", "eq_real_known", "eq_vs_random"])
     warehouse.insert_df(con, "action_equity", eq)
-    warehouse.insert_df(con, "action_range_equity", eq[["hand_id", "action_index"]].assign(eq_vs_range=0.5))
+    post = eq[~eq["hand_id"].eq("H5")]
+    warehouse.insert_df(con, "action_range_equity", post[["hand_id", "action_index"]].assign(eq_vs_range=0.5))
+    warehouse.insert_df(con, "action_range_equity_pre", pd.DataFrame(
+        [("H5", 52, 0.35, "unopened", "raise", "P4"), ("H5", 53, 0.6, "vs_open", "raise", "P4")],
+        columns=["hand_id", "action_index", "eq_vs_range", "opp_situation", "opp_action", "prior_level"]))
     return con
 
 
 def test_scored_decisions_query_on_a_tiny_warehouse():
     con = tiny_warehouse()
-    d = warehouse.run_sql_file(con, SQL).set_index("action_index")
+    d = warehouse.run_sql_file(con, SQL, hu_tables_only=False).set_index("action_index")
+    hu = warehouse.run_sql_file(con, SQL, hu_tables_only=True).set_index("action_index")
     con.close()
-    assert sorted(d.index) == [10, 11, 20, 21, 22, 23]                  # preflop rows left out
+    # flop_hu: H3's flop (two players saw it) and H5's 3-bet pot (one live opponent) join; three-way spots do not
+    assert sorted(d.index) == [1, 2, 10, 11, 20, 21, 22, 23, 33, 34, 52, 53]
+    assert sorted(hu.index) == [1, 2, 10, 11, 20, 21, 22, 23]                   # hu_tables: the heads-up table only
+    assert d.loc[33, "opponent_id"] == "P1" and d.loc[34, "opponent_id"] == "P3"
+    assert d.loc[34, "table_class"] == "3-6" and d.loc[10, "table_class"] == "hu"
+    assert bool(d.loc[34, "facing"]) and d.loc[34, "bettor_q"] == 0.8
+    assert bool(d.loc[53, "facing"]) and d.loc[53, "bettor_id"] == "P3" and d.loc[53, "opponent_id"] == "P3"
+    assert bool(d.loc[52, "facing"]) and bool(d.loc[52, "bluff_success"])     # P1 folded to the 3-bet
+    assert d.loc[52, "r"] == 0.35 and d.loc[53, "opp_situation"] == "vs_open" and pd.isna(d.loc[1, "r"])
     assert bool(d.loc[10, "bluff_success"]) and not bool(d.loc[10, "facing"])
     assert bool(d.loc[11, "facing"]) and d.loc[11, "bettor_id"] == "P1" and d.loc[11, "bettor_q"] == 0.3
     assert pd.isna(d.loc[11, "bluff_success"]) and d.loc[11, "opponent_id"] == "P1"
@@ -243,3 +274,24 @@ def test_scored_decisions_query_on_a_tiny_warehouse():
     assert bool(d.loc[22, "facing"]) and d.loc[22, "bettor_q"] == 0.4 and not bool(d.loc[22, "bluff_success"])
     assert d.loc[23, "bettor_id"] == "P1" and d.loc[23, "bettor_q"] == 0.6 and d.loc[23, "pot_bb"] == 9.0
     assert not bool(d.loc[20, "facing"]) and pd.isna(d.loc[20, "bettor_q"])
+    same = ["player_id", "opponent_id", "street", "action", "q", "r", "facing", "bettor_q", "pot_bb"]
+    pd.testing.assert_frame_equal(d.loc[hu.index, same], hu[same], check_dtype=False)
+
+
+def test_player_hands_query_scope():
+    con = tiny_warehouse()
+    warehouse.execute(con, "ALTER TABLE hands ADD COLUMN hand_date DATE DEFAULT DATE '2001-01-01'")
+    warehouse.execute(con, "ALTER TABLE hands ADD COLUMN variant VARCHAR DEFAULT 'standard'")
+    warehouse.execute(con, "ALTER TABLE hands ADD COLUMN error_flag BOOLEAN DEFAULT FALSE")
+    for col, typ, val in (("net_bb", "DOUBLE", "0"), ("net_pre_rake_bb", "DOUBLE", "0"), ("vpip", "BOOLEAN", "TRUE"),
+                          ("pfr", "BOOLEAN", "FALSE"), ("is_bb", "BOOLEAN", "FALSE"), ("n_decisions", "INTEGER", "1")):
+        warehouse.execute(con, f"ALTER TABLE hand_players ADD COLUMN {col} {typ} DEFAULT {val}")
+    sql = step05.SQL_DIR / "player_hands.sql"
+    h = warehouse.run_sql_file(con, sql, hu_tables_only=False).set_index(["hand_id", "player_id"])
+    hu = warehouse.run_sql_file(con, sql, hu_tables_only=True)
+    con.close()
+    assert len(h) == 13 and set(hu["hand_id"]) == {"H1", "H2"}
+    opp = h["opponent_id"]
+    assert opp[("H1", "P2")] == "P1" and opp[("H3", "P1")] == "P3" and opp[("H3", "P3")] == "P1"
+    assert pd.isna(opp[("H3", "P2")]) and opp.loc["H4"].isna().all() and opp.loc["H5"].isna().all()
+    assert h.loc[("H3", "P1"), "table_class"] == "3-6" and h.loc[("H1", "P1"), "table_class"] == "hu"

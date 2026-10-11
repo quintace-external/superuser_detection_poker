@@ -31,6 +31,12 @@ n_days = 60
 target_hands = 400000
 plants = ["SU_FULL_100", "SU_FULL_050", "SU_FULL_025", "SU_VICTIM_92", "SU_VICTIM_50", "SU_VICTIM_20", "SU_ONSET"]
 
+[sim.datasets.sim_pf]             # tables of any size: run with --preflop-info (05_detection/results/eval_preflop_flop.md)
+n_players = 200
+n_days = 40
+target_hands = 200000
+plants = ["SU_FULL_100", "SU_FULL_050", "SU_VICTIM_92", "SU_ONSET", "SU_RING_100", "SU_RING_050"]
+
 [sim.datasets.custom]
 n_players = 120
 n_days = 20
@@ -97,6 +103,20 @@ activity_quantile = 0.6
 hu_pref = 0.6
 u = 1.0
 from_day_frac = 0.75
+
+[sim.plants.SU_RING_100]         # six-max only: invisible to a screen of two-player tables
+kind = "full_table"
+activity_quantile = 0.6
+hu_pref = 0.0
+u = 1.0
+from_day = 0
+
+[sim.plants.SU_RING_050]
+kind = "full_table"
+activity_quantile = 0.6
+hu_pref = 0.0
+u = 0.5
+from_day = 0
 
 [sim.schedule]
 activity_sigma = 0.5              # lognormal spread of a player's mean sessions per day

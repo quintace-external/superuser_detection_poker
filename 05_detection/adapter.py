@@ -52,15 +52,39 @@ def _chips(bb) -> float:
     return 0.0 if bb is None or (isinstance(bb, float) and math.isnan(bb)) else float(bb) * CHIPS_PER_BB
 
 
-def hands_in_scope(con, player: str, opponent: str | None = None, heads_up_only: bool = True) -> list[str]:
+SCOPES = ("flop_hu", "hu_tables", "all")
+
+
+def scope_name(scope: str | bool) -> str:
+    """A scope name; the old ``heads_up_only`` flag maps True -> 'hu_tables', False -> 'all'."""
+    if isinstance(scope, bool):
+        return "hu_tables" if scope else "all"
+    if scope not in SCOPES:
+        raise ValueError(f"scope must be one of {SCOPES}: {scope!r}")
+    return scope
+
+
+def hands_in_scope(con, player: str, opponent: str | None = None, scope: str | bool = "flop_hu") -> list[str]:
+    """The player's hands the analysis reads (standard variant, no error):
+
+    * ``flop_hu`` (default, the scope of ``screen.py``): every hand dealt to two players, and at larger tables every
+      hand he took to the flop with exactly one other player. A pot three or more players see the flop of is left
+      out: the categories read equity against every live opponent, which is not what they were built for;
+    * ``hu_tables``: hands dealt to exactly two players (the article's scope);
+    * ``all``: every hand, multiway pots included.
+    """
+    scope = scope_name(scope)
     sql = """
         SELECT DISTINCT p.hand_id
         FROM hand_players p JOIN hands h USING (hand_id)
         WHERE p.player_id = $player AND h.variant = 'standard' AND NOT h.error_flag
     """
     params = {"player": player}
-    if heads_up_only:
+    if scope == "hu_tables":
         sql += " AND h.n_dealt = 2"
+    elif scope == "flop_hu":
+        sql += """ AND (h.n_dealt = 2 OR (p.saw_flop AND (SELECT count(*) FROM hand_players f
+                                                           WHERE f.hand_id = p.hand_id AND f.saw_flop) = 2))"""
     if opponent is not None:
         sql += " AND EXISTS (SELECT 1 FROM hand_players q WHERE q.hand_id = p.hand_id AND q.player_id = $opponent)"
         params["opponent"] = opponent
@@ -134,7 +158,8 @@ def build(con, hand_ids: list[str], times: dict | None = None) -> tuple[pd.DataF
                     acts[st].append(Action(st, int(a.action_index), int(a.seat), uid, TYPE[a.action],
                                            int(round(amount)), t, aggressive))
                     eq = None
-                    if st != "preflop" and a.eq_real_known and a.eq_vs_real is not None and not pd.isna(a.eq_vs_real):
+                    known = a.eq_real_known is not None and not pd.isna(a.eq_real_known) and bool(a.eq_real_known)
+                    if st != "preflop" and known and a.eq_vs_real is not None and not pd.isna(a.eq_vs_real):
                         eq = float(a.eq_vs_real)
                     facing = last_aggr is not None and last_aggr["seat"] != int(a.seat)
                     hole = seats[int(a.seat)].hole
@@ -169,11 +194,11 @@ def build(con, hand_ids: list[str], times: dict | None = None) -> tuple[pd.DataF
     return pd.DataFrame(rows), hands, uid_of
 
 
-def analyse_player(con, player: str, opponent: str | None = None, heads_up_only: bool = True,
+def analyse_player(con, player: str, opponent: str | None = None, scope: str | bool = "flop_hu",
                    times: dict | None = None) -> dict:
-    """The module's analyse_player, fed from the warehouse. ``player`` in the result is the module's integer id,
-    ``player_id`` the warehouse id."""
-    ids = hands_in_scope(con, player, opponent, heads_up_only)
+    """The module's analyse_player, fed from the warehouse, on the hands of ``scope`` (see :func:`hands_in_scope`).
+    ``player`` in the result is the module's integer id, ``player_id`` the warehouse id."""
+    ids = hands_in_scope(con, player, opponent, scope)
     dec, hands, uid_of = build(con, ids, times)
     name_of = {v: k for k, v in uid_of.items()}
     uid = uid_of.get(player)
@@ -194,4 +219,5 @@ def analyse_player(con, player: str, opponent: str | None = None, heads_up_only:
         "escalation": escalation(hand_list, suspicious),
         "decisions": dec,
         "hands": hands,
+        "uid_of": uid_of,                 # warehouse player_id -> the module's integer id in these hands
     }

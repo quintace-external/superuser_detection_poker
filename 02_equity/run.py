@@ -122,6 +122,7 @@ class Settings:
 
     backend: str = "numpy"
     include_preflop: bool = False
+    preflop_max_opp: int = 0
     seed: int = 20011
     mc_samples: int = 4096
     flop_random_exact: bool = False
@@ -346,7 +347,7 @@ def stage_kind(dataset: str, kind: str, settings: Settings, stage: Stage, runner
         plan_sql, inputs_sql, batch_size = "plan_decisions.sql", "inputs_decisions.sql", settings.batch_rows
     else:
         plan_sql, inputs_sql, batch_size = "plan_hands.sql", "inputs_hands.sql", settings.batch_hands
-    params = {"include_preflop": bool(settings.include_preflop)}
+    params = {"include_preflop": bool(settings.include_preflop), "preflop_max_opp": int(settings.preflop_max_opp)}
     wait_s = float(settings.lock_wait_s)
     plan = read_df(dataset, (SQL_DIR / plan_sql).read_text(encoding="utf-8"), wait_s, log, **params)
     inputs_text = (SQL_DIR / inputs_sql).read_text(encoding="utf-8")
@@ -512,6 +513,7 @@ def run(dataset: str, *, settings: Optional[Settings] = None, fresh: bool = Fals
     with session(dataset, True, wait_s, log) as con:
         result.checks = warehouse.run_sql_file(con, SQL_DIR / "checks.sql",
                                                include_preflop=bool(settings.include_preflop),
+                                               preflop_max_opp=int(settings.preflop_max_opp),
                                                hand_equity=bool(settings.hand_equity))
         result.summary = summarize(con)
     if settings.hand_equity and settings.identity_sample > 0:

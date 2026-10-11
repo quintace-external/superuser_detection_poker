@@ -36,7 +36,8 @@ The warehouse is `$SU_DATA_DIR/<dataset>.duckdb` and step 01 must have loaded it
 | key | default | meaning |
 |---|---|---|
 | `backend` | `numpy` | `numpy`, or `pyrust` when the optional package `pyrust_poker` is installed |
-| `include_preflop` | false | also score preflop decisions (see "Preflop rows") |
+| `include_preflop` | true | also score preflop decisions (see "Preflop rows") |
+| `preflop_max_opp` | 1 | ... only those with at most this many live opponents (0 = every preflop decision) |
 | `seed` | 20011 | base seed of every Monte Carlo estimate |
 | `mc_samples` | 4096 | Monte Carlo deals per row where Monte Carlo is used (at most 65,536) |
 | `flop_random_exact` | false | enumerate the flop against a random hand instead of sampling it |
@@ -162,10 +163,12 @@ so far. A call breaks even against the real cards when `eq_vs_real = pot_odds` (
 
 ### Preflop rows
 
-By default `action_equity` has no preflop rows; preflop equity against the real cards is kept at hand level for
-heads-up hands. With `include_preflop = true`, preflop decisions get `eq_vs_random` from the exact table
+With `include_preflop = true` (the default) preflop decisions get `eq_vs_random` from the exact table
 `PREFLOP_VS_RANDOM` (`eq_method = 'exact'`), `eq_vs_real` by Monte Carlo with `mc_samples` deals
-(`eq_real_method = 'mc'`) and `ahead_now` NULL.
+(`eq_real_method = 'mc'`) and `ahead_now` NULL. `preflop_max_opp = 1` scores only the decisions with one live
+opponent (everyone else has folded): the heads-up confrontations step 05's preflop tests read, at any table size.
+On 200,000 simulated hands (70% heads-up tables, 30% six-max) that is 330,000 preflop rows and about 2 minutes on 12
+processes for the whole step. `include_preflop = false` leaves preflop equity at hand level only (`hand_equity`).
 
 ## Speed
 

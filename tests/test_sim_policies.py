@@ -320,6 +320,20 @@ def test_run_writes_hands_and_metadata_next_to_the_folder_and_is_reproducible(cf
     assert len(population["players"]) == 24 and "style" in population["players"][0]
 
 
+def test_mined_run_writes_the_same_hands_without_the_dealt_to_lines(cfg, tmp_path):
+    full = simulate(cfg, "tiny", out_dir=tmp_path / "full" / "hands", procs=1)
+    mined = simulate(cfg, "tiny", out_dir=tmp_path / "mined" / "hands", procs=1, full_information=False)
+    a, b = _files(full.out_dir), _files(mined.out_dir)
+    assert a.keys() == b.keys()
+    for name in a:
+        full_lines = a[name].decode("utf-8").split("\n")
+        assert [x for x in full_lines if not x.startswith("Dealt to ")] == b[name].decode("utf-8").split("\n")
+    everything = b"".join(b.values()).decode("utf-8")
+    assert "Dealt to" not in everything and re.search(r"^P_[0-9a-f]{6}: shows \[", everything, flags=re.M)
+    for name in ("ground_truth.json", "population.json", "run_summary.json"):
+        assert (full.out_dir.parent / name).read_bytes() == (mined.out_dir.parent / name).read_bytes()
+
+
 def test_rerun_with_another_seed_changes_the_cards(cfg, tmp_path):
     a = simulate(cfg, "tiny", out_dir=tmp_path / "a" / "hands", procs=1, seed=1)
     b = simulate(cfg, "tiny", out_dir=tmp_path / "b" / "hands", procs=1, seed=2)

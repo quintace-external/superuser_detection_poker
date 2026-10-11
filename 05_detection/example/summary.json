@@ -24,7 +24,10 @@
     "w_sd": 0.6521739130434783,
     "fold_to_river_bet": 0.6296296296296297,
     "river_call_win_rate": 0.6923076923076923,
-    "median_think_time": 3.0
+    "median_think_time": 3.0,
+    "mean_think_time": 3.852051109616678,
+    "min_think_time": 0.0,
+    "max_think_time": 17.0
   },
   "signals": {
     "perfect_fold_ratio_postflop": {
@@ -84,7 +87,7 @@
   },
   "suspicious_hand_count": 74,
   "player_id": "1001",
-  "dataset": "final_case",
+  "dataset": "article_sample",
   "by_category": {
     "A": 31,
     "D": 21,
@@ -93,5 +96,27 @@
   },
   "range_only_hands": 0,
   "decision_times_restored": true,
-  "range_boxes": 74
+  "range_boxes": 74,
+  "field_dataset": "the reference field",
+  "field_player_id": null,
+  "rare_decisions": {
+    "preflop": 25,
+    "flop": 3,
+    "range_boxes": 28
+  },
+  "victims": [
+    {
+      "opponent": "1002",
+      "label": "top 0.03% of the field's pairs"
+    }
+  ],
+  "street_tails": {
+    "street_hits": 3,
+    "escalate": true,
+    "review": true,
+    "pf_hit": true,
+    "fl_hit": true,
+    "tr_hit": true
+  },
+  "report_notes": []
 }

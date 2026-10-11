@@ -9,7 +9,7 @@ three tables in batches. Then it numbers the hands per table, creates the views
 Usage::
 
     python 01_action_table/run.py --dataset article_sample --input $SU_DATA_DIR/article_sample/input/hands.txt --source operator
-    python 01_action_table/run.py --dataset mined --input "D:/data/**/*.zip" --hash-ids
+    python 01_action_table/run.py --dataset mined --input D:/hands --source mined --hash-ids
 
 Options:
     --input        folder, glob or file; repeat for several (folders are read recursively)
@@ -21,8 +21,11 @@ Options:
     --config       TOML file whose keys override config/defaults.toml
     --source       label stored in hands.source: operator (full information) | mined (observer) | sim (tests)
 
-The exit code is 1 when an invariant fails or a hand could not be replayed
-(``--allow-violations`` reports them and exits 0).
+The exit code is 2 when an input is missing or no hand of the input passes the
+gate (no hand header, another layout, every hand dropped: the warehouse is not
+touched then, and the input format is in ``docs/HAND_HISTORY_FORMAT.md``), and 1
+when no hand was loaded, an invariant fails or a hand could not be replayed
+(``--allow-violations`` reports the last two and exits 0).
 """
 
 from __future__ import annotations
@@ -143,6 +146,31 @@ def iter_sources(inputs: Sequence[str], extensions: Sequence[str]) -> Iterator[t
                 yield label, _decode(f.read_bytes())
 
 
+def check_inputs(inputs: Sequence[str], extensions: Sequence[str], options: ParseOptions) -> None:
+    """Before the warehouse is touched: every input exists and at least one hand of the input passes the gate.
+
+    Stops at the first hand that passes. Raises ``FileNotFoundError`` for a missing input and ``RuntimeError``,
+    naming the most frequent drop reasons, when no hand could be loaded.
+    """
+    for spec in inputs:
+        if not any(ch in spec for ch in "*?[") and not Path(spec).exists():
+            raise FileNotFoundError(f"no input at {spec}")
+    reasons: Counter = Counter()
+    for _, text in iter_sources(inputs, extensions):
+        for hand_text in split_hands(text):
+            parsed = parse_hand(hand_text, options)
+            if not isinstance(parsed, GateReject):
+                return
+            reasons[parsed.reason] += 1
+    where = ", ".join(inputs)
+    if not reasons:
+        raise RuntimeError(f"no hand history found in {where}: step 01 reads PokerStars-style text in UTF-8 "
+                           "(docs/HAND_HISTORY_FORMAT.md); the warehouse was not changed")
+    top = ", ".join(f"{reason} {k:,}" for reason, k in reasons.most_common(3))
+    raise RuntimeError(f"no hand in {where} passes the checks of step 01 (dropped: {top}); the warehouse was not "
+                       "changed (docs/HAND_HISTORY_FORMAT.md, 'What is dropped, and why')")
+
+
 # ------------------------------------------------------------------ load
 
 
@@ -153,6 +181,7 @@ class LoadResult:
     funnel: Counter = field(default_factory=Counter)
     invariants: Optional[pd.DataFrame] = None
     replay_errors: list[tuple[str, str, str]] = field(default_factory=list)
+    no_header_files: list[str] = field(default_factory=list)   # files that hold no hand header at all
     hands_loaded: int = 0
     seconds_parse_replay: float = 0.0
     seconds_insert: float = 0.0
@@ -201,6 +230,7 @@ def load(
     if want_classes and not handclass_available():
         log("note: sudetect.handclass is not importable; hand-class columns stay NULL")
     ctx = ReplayContext(source=source, ids=ids, hand_classes=want_classes)
+    check_inputs(inputs, step["input_extensions"], opts)  # before any table of the dataset is dropped
 
     result = LoadResult()
     t_start = time.perf_counter()
@@ -237,7 +267,10 @@ def load(
         for label, text in iter_sources(inputs, step["input_extensions"]):
             files_seen.append(label)
             t0 = time.perf_counter()
-            for hand_text in split_hands(text):
+            hand_texts = split_hands(text)
+            if not hand_texts:
+                result.no_header_files.append(label)
+            for hand_text in hand_texts:
                 parsed = parse_hand(hand_text, opts)
                 if isinstance(parsed, GateReject):
                     result.funnel[(label, parsed.reason)] += 1
@@ -273,7 +306,8 @@ def load(
         result.seconds_parse_replay = t_parse
 
         funnel_df = pd.DataFrame(
-            [(dataset, f, r, k) for (f, r), k in sorted(result.funnel.items())],
+            [(dataset, f, r, k) for (f, r), k in sorted(result.funnel.items())]
+            + [(dataset, f, "no_hand_header", 0) for f in result.no_header_files],
             columns=["dataset", "file", "reason", "n_hands"],
         )
         if incremental and files_seen:
@@ -300,6 +334,9 @@ def report(result: LoadResult, log: Callable[[str], None] = print) -> None:
     for reason, k in sorted(reasons.items(), key=lambda kv: -kv[1]):
         if reason != "loaded":
             log(f"  dropped {reason}: {k:,}")
+    if result.no_header_files:
+        first = ", ".join(result.no_header_files[:3]) + (", ..." if len(result.no_header_files) > 3 else "")
+        log(f"  files without a hand header (another layout or encoding): {len(result.no_header_files):,} ({first})")
     if result.seconds_parse_replay > 0:
         rate = result.hands_loaded / result.seconds_parse_replay
         log(f"parse + replay: {result.seconds_parse_replay:.1f} s ({rate:,.0f} hands/s); "
@@ -333,9 +370,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                       source=args.source, batch_hands=args.batch_hands, incremental=args.incremental,
                       limit=args.limit)
     except (RuntimeError, FileNotFoundError) as exc:
+        sys.stdout.flush()
         print(f"error: {exc}", file=sys.stderr)
         return 2
     report(result)
+    if result.hands_loaded == 0:
+        sys.stdout.flush()
+        print("error: no hand was loaded; the reasons are listed above (docs/HAND_HISTORY_FORMAT.md)",
+              file=sys.stderr)
+        return 1
     failed = result.violations > 0 or bool(result.replay_errors)
     return 1 if failed and not args.allow_violations else 0
 

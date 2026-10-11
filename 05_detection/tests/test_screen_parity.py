@@ -32,6 +32,7 @@ SIGNALS = {  # module signal -> step 05 column
 
 def module_config() -> dict:
     cfg = step05.load_config()
+    cfg["scope"] = "hu_tables"          # the module reads two-player tables only
     cfg["scorecard"].update(pair_plus_own_cards=False, bluff_includes_raises=True, vpip_excludes_walks=False,
                             gap_min_n=1)
     cfg["hand_tests"]["rule_sets"] = ["article"]
@@ -43,7 +44,7 @@ def module_config() -> dict:
 def ours():
     cfg = module_config()
     inp = step05.read_inputs(DATASET, cfg)
-    dec = step05.prepare_decisions(inp["dec"], cfg)
+    dec = step05.prepare_decisions(inp["dec"][lambda x: x["street"] != "preflop"], cfg)
     hands = step05.prepare_hands(inp["hands"])
     card = step05.scorecard_frame(dec, ["player_id"], cfg).set_index("player_id")
     ptab = M.fit_expected_fold(step05._responses(dec))
@@ -70,7 +71,7 @@ def test_module_parity(ours):
     con = step05._connect(DATASET, True, 600)
     try:
         for pid in players(hands):
-            res = analyse_player(con, pid)
+            res = analyse_player(con, pid, scope="hu_tables")   # the screen's scope above
             sig = res["signals"]
             for name, col in SIGNALS.items():
                 theirs, mine = sig[name]["value"], card.loc[pid, col]

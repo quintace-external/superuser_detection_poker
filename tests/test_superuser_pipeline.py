@@ -1,6 +1,7 @@
 """The per-suspect package on the sample case: data/sample_hands.csv, the article's case with ids and dates replaced."""
 from superuser import DEFAULT_INPUT, analyse_player, parse_hand, read_hands
 from superuser.report import to_markdown
+from superuser.suspicious import COLUMNS
 
 ROWS = read_hands(DEFAULT_INPUT).to_dict("records")
 SUSPECT, VICTIM = 1001, 1002
@@ -34,7 +35,7 @@ def test_opponent_scope_and_report():
 def test_player_not_present():
     res = analyse_player(ROWS, 9999)
     assert res["meta"]["hands_analysed"] == 0
-    assert res["suspicious_hands"].empty
+    assert res["suspicious_hands"].empty and list(res["suspicious_hands"].columns) == COLUMNS
 
 
 def test_write_report_overwrites_output(tmp_path):
@@ -55,6 +56,7 @@ def test_package_numbers_on_the_sample():
     res = analyse_player(ROWS, SUSPECT)
     sus = res["suspicious_hands"]
     assert len(sus) == 76 and sus["category"].value_counts().to_dict() == {"A": 31, "D": 23, "B": 15, "C": 7}
+    assert list(sus.columns) == COLUMNS       # the columns a frame without rows gets too
     assert sus["decision_label"].value_counts().to_dict() == {
         "Perfect fold": 37, "Good fold": 10, "Average fold": 7, "Average call": 6, "Good call": 5,
         "Perfect call": 4, "Perfect bluff": 3, "Good bluff": 2, "Average bluff": 2}

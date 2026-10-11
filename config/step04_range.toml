@@ -58,7 +58,8 @@ sizing = true             # true: the opponent's bet and raise sizes narrow his 
                           # false: the size-blind model (rng_lik_post), a 33% bet and a 125% overbet read alike
 
 [enrich]
-tables = "hu"             # "hu": decisions at two-player tables (the hu_decisions view); "all": any table
+tables = "all"            # "all": heads-up pots at tables of any size (step 05 scope flop_hu); "hu": two-player
+                          # tables only (the hu_decisions view, step 05 scope hu_tables)
 max_live_opp = 1          # 1: heads-up pots only; 2 or 3 also scores multiway rows with Monte Carlo equity
 streets = ["flop", "turn", "river"]
 exact = true              # heads-up equity vs the range by enumeration on every street (false: Monte Carlo on the flop)

@@ -1,13 +1,21 @@
 """Standard player statistics computed directly from the replay actions."""
 from __future__ import annotations
 
-from statistics import median
+import math
+from statistics import mean, median
 
 from .parser import Hand
+
+TIME_ACTIONS = ("check", "fold", "call", "bet", "raise", "allin")   # order of the decision-time table
 
 
 def _first(lst, pred):
     return next((x for x in lst if pred(x)), None)
+
+
+def _known(t) -> bool:
+    """A recorded decision time (sources without times leave NaN)."""
+    return t is not None and not (isinstance(t, float) and math.isnan(t))
 
 
 def hand_flags(hand: Hand, uid: int) -> dict | None:
@@ -95,7 +103,7 @@ def player_stats(hands: list[Hand], uid: int) -> dict:
     fl = [x for x in (hand_flags(h, uid) for h in hands) if x is not None]
     n = len(fl)
     s = lambda k: sum(1 for x in fl if x[k])
-    times = [t for x in fl for t in x["times"]]
+    times = [t for x in fl for t in x["times"] if _known(t)]
     aggr, calls, folds = (sum(x[k] for x in fl) for k in ("post_aggr", "post_calls", "post_folds"))
     return {
         "hands": n,
@@ -114,4 +122,28 @@ def player_stats(hands: list[Hand], uid: int) -> dict:
         "fold_to_river_bet": _ratio(sum(x["river_fold"] for x in fl), sum(x["river_faced"] for x in fl)),
         "river_call_win_rate": _ratio(sum(x["river_call_won"] for x in fl), sum(x["river_call"] for x in fl)),
         "median_think_time": median(times) if times else None,
+        "mean_think_time": mean(times) if times else None,
+        "min_think_time": min(times) if times else None,
+        "max_think_time": max(times) if times else None,
     }
+
+
+def decision_times(hands: list[Hand], uid: int) -> list[dict]:
+    """Seconds per action of one player by action type: count, mean, median, minimum and maximum (the four numbers
+    the article summarises per player and action type), then the same over every action ("all"). Actions without a
+    recorded time and walks are left out; no rows when the source has no times."""
+    by: dict[str, list[float]] = {}
+    for h in hands:
+        seat = h.seat_of(uid)
+        if seat is None:
+            continue
+        for acts in h.actions.values():
+            for a in acts:
+                if a.seat_no == seat.seat_no and a.name != "walk" and _known(a.time):
+                    by.setdefault(a.name, []).append(float(a.time))
+    order = sorted(by, key=lambda k: (TIME_ACTIONS.index(k) if k in TIME_ACTIONS else len(TIME_ACTIONS), k))
+    groups = [(k, by[k]) for k in order]
+    if groups:
+        groups.append(("all", [t for _, ts in groups for t in ts]))
+    return [{"action": k, "n": len(ts), "mean_s": mean(ts), "median_s": median(ts), "min_s": min(ts),
+             "max_s": max(ts)} for k, ts in groups]

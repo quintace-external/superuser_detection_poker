@@ -169,7 +169,9 @@ def step_fit(con: Any, dataset: str, fit_from: Optional[str], cfg: Mapping[str, 
         if share < float(cfg["fit"]["min_full_share"]):
             raise SystemExit(
                 f"{dataset}: only {share:.1%} of the hands show every player's cards. The field tables need "
-                "full-information hands; run with --fit-from <a full-information dataset> to apply tables fitted there."
+                "full-information hands; run with --fit-from <a full-information dataset> to apply tables fitted there, "
+                "or, for mined hands without one, with --config 04_predicted_range/variants/observer_fit.toml "
+                "(docs/HAND_HISTORY_FORMAT.md, 'The example')."
             )
         warehouse.run_sql_file(con, SQL_DIR / "fit_lik_post.sql")
         warehouse.run_sql_file(con, SQL_DIR / "fit_lik_size.sql", **size_edges())

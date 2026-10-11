@@ -1,0 +1,6 @@
+# Variant of config/step05_screening.toml for mined hand histories (hole cards only at the showdown).
+# Mined samples are thinner than an operator's own: the observer metrics rank players from 300 hands instead of 1,000
+# (and, for a rate, still 20 cases). Every other screening setting stays the default.
+#   python 05_detection/screen.py --dataset mined --config 05_detection/variants/observer_300.toml
+[step05.observer]
+min_hands = 300

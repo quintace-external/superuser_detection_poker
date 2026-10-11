@@ -14,7 +14,10 @@ keep_bomb_pots = false           # gate: keep antes-only hands with no preflop b
 timeout_marks_auto_action = true # a fold or check right after "<player> has timed out" is the system's action
 money_tolerance_units = 0        # gate: allowed error of collected + returned = put in - rake - drops, in units
 hand_classes = true              # fill made_hand / draw / hand_bucket10 / board columns (sudetect.handclass)
-invariant_tol = 1e-6             # tolerance of the invariant checks, in big blinds
+invariant_tol = 1e-5             # tolerance of the invariant checks, in big blinds (amounts are stored in bb
+                                 # rounded to 6 decimals, so a sum of a few of them can be off by about 1e-6); it hides
+                                 # an error of one unit only from a big blind of 100,000 units up; the gate's money
+                                 # check stays exact
 
 [step01.hash_ids]                # --hash-ids: HMAC-SHA256 with the secret in env SU_ID_SALT, truncated hex
 player_hex = 12

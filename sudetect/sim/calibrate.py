@@ -8,7 +8,7 @@ players (the honest field, each archetype, each planted player) and
 :func:`format_calibration` prints them next to the target ranges of
 ``[sim.calibration]``.
 
-Definitions (PokerTracker conventions):
+Definitions (the usual HUD conventions):
 
 * VPIP, PFR: hands with a voluntary call or raise (a raise) before the flop,
   over hands with at least one preflop decision (walks are left out; the big

@@ -118,10 +118,12 @@ def make_agents(cfg: SimConfig, pop: Population, seed: int) -> dict[int, HonestP
 
 def play_unit(cfg: SimConfig, pop: Population, unit: WorkUnit, agents: Mapping[int, HonestPolicy], seed: int,
               *, out_path: Optional[Path] = None, counter: Optional[HudCounter] = None,
-              keep_records: bool = False) -> tuple[int, list[HandRecord]]:
+              keep_records: bool = False, full_information: bool = True) -> tuple[int, list[HandRecord]]:
     """Play every session of a work unit; optionally write its text and count HUD stats.
 
-    Returns the number of hands played and, with ``keep_records``, the records.
+    ``full_information`` False writes the mined view (no ``Dealt to`` lines; see
+    :mod:`sudetect.sim.hhtext`). Returns the number of hands played and, with
+    ``keep_records``, the records.
     """
     tables = {2: table_config(cfg, 2), cfg.ring_seats: table_config(cfg, cfg.ring_seats)}
     names = [p.name for p in pop.players]
@@ -136,7 +138,7 @@ def play_unit(cfg: SimConfig, pop: Population, unit: WorkUnit, agents: Mapping[i
                 if handle is not None:
                     if n_written:
                         handle.write("\n")
-                    handle.write(write_hand(rec, full_information=True))
+                    handle.write(write_hand(rec, full_information=full_information))
                 if counter is not None:
                     counter.add(rec)
                 if keep_records:
@@ -216,7 +218,8 @@ def _run_unit(unit: WorkUnit) -> dict[str, Any]:
     t0 = time.perf_counter()
     counter = HudCounter() if w["calibrate"] else None
     out_path = (w["out_dir"] / unit.file_name) if w["out_dir"] is not None else None
-    n, _ = play_unit(w["cfg"], w["pop"], unit, w["agents"], w["seed"], out_path=out_path, counter=counter)
+    n, _ = play_unit(w["cfg"], w["pop"], unit, w["agents"], w["seed"], out_path=out_path, counter=counter,
+                     full_information=w.get("full_information", True))
     plants = {}
     for pl in w["pop"].plants.values():
         a = w["agents"][pl.player]
@@ -232,7 +235,7 @@ def _run_unit(unit: WorkUnit) -> dict[str, Any]:
 def simulate(cfg: Optional[SimConfig] = None, dataset: str = "sim_small", *, out_dir: Optional[Path] = None,
              procs: int = 1, seed: Optional[int] = None, calibrate: bool = False, write: bool = True,
              target_hands: Optional[int] = None, n_days: Optional[int] = None,
-             log: Optional[Any] = None) -> SimResult:
+             log: Optional[Any] = None, full_information: bool = True) -> SimResult:
     """Simulate one dataset.
 
     Args:
@@ -247,6 +250,8 @@ def simulate(cfg: Optional[SimConfig] = None, dataset: str = "sim_small", *, out
         write: Write the hand files and JSON files (False for quick calibration runs).
         target_hands, n_days: Override the dataset's size.
         log: Callable taking a string, for progress lines.
+        full_information: False writes the mined view: no ``Dealt to`` lines, hole cards only where
+            a player shows them at the showdown (the same hands and the same answer key).
     """
     cfg = cfg or load_sim_config()
     seed = cfg.seed if seed is None else int(seed)
@@ -273,14 +278,16 @@ def simulate(cfg: Optional[SimConfig] = None, dataset: str = "sim_small", *, out
     units = sorted(sched.units, key=lambda u: -u.n_hands)
     done = 0
     results: dict[str, dict[str, Any]] = {}
+    state = {"cfg": cfg, "pop": pop, "seed": seed, "out_dir": out_dir, "calibrate": calibrate,
+             "full_information": full_information}
     if procs <= 1:
-        _init_worker(pickle.dumps({"cfg": cfg, "pop": pop, "seed": seed, "out_dir": out_dir, "calibrate": calibrate}))
+        _init_worker(pickle.dumps(state))
         for u in units:
             res = _run_unit(u)
             results[res["file"]] = res
             done += int(res["hands"])
     else:
-        payload = pickle.dumps({"cfg": cfg, "pop": pop, "seed": seed, "out_dir": out_dir, "calibrate": calibrate})
+        payload = pickle.dumps(state)
         ctx = mp.get_context("spawn")
         with ProcessPoolExecutor(max_workers=procs, mp_context=ctx, initializer=_init_worker,
                                  initargs=(payload,)) as ex:

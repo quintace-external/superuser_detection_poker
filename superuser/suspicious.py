@@ -14,6 +14,10 @@ CATEGORIES = {
 }
 LABEL_ORDER = {"Perfect": 0, "Good": 1, "Average": 2}
 SNAP_SECONDS, SNAP_POT_BB = 2, 30        # snap decision: Perfect label, <= 2 s, pot >= 30 bb
+# the columns of find_suspicious's frame without rows: the keys of a row, in order (tests/test_superuser_pipeline.py)
+COLUMNS = ["hand_uid", "start_utc", "category", "category_name", "decision_label", "street", "key_action",
+           "bet_to_pot", "decision_time_s", "snap_decision", "equity_at_decision", "player_cards", "opponent_uid",
+           "opponent_cards", "board", "player_hand", "opponent_hand", "pot_bb", "net_win"]
 
 
 def _tier(cat: int | None) -> int:
@@ -37,11 +41,25 @@ def _category(hand: Hand, row: dict) -> str | None:
     return None
 
 
+def _live_uids(hand: Hand, row: dict) -> set[int]:
+    """Players still in the hand at the row's decision: nobody who folded before it (``seq`` orders the hand)."""
+    everyone = {s.uid for s in hand.seats.values()}
+    seq = row.get("seq")
+    if seq is None:
+        return everyone
+    return everyone - {a.uid for acts in hand.actions.values() for a in acts if a.type == 2 and a.seq < seq}
+
+
 def _opponent_uid(hand: Hand, row: dict, cat: str, uid: int) -> int | None:
+    """The opponent of a flagged decision: the bettor it faced (A, B, D), else the strongest live opponent (C).
+
+    Only players still in the hand at the decision count: at a six-max table a player who folded preflop holds
+    known cards too and must not be taken for the opponent of a river bluff."""
     if cat in ("A", "B", "D") and row.get("bettor_uid") is not None:
         return int(row["bettor_uid"])
     board = hand.board[:BOARD_LEN[row["street"]]]
-    others = [s for s in hand.seats.values() if s.uid != uid and s.hole]
+    live = _live_uids(hand, row)
+    others = [s for s in hand.seats.values() if s.uid != uid and s.hole and s.uid in live]
     if not others:
         return None
     return max(others, key=lambda s: evaluate(board + s.hole)).uid
@@ -63,7 +81,7 @@ def _label(cat: str, eq: float, tier: int, opp_tier: int) -> str:
 
 def find_suspicious(hands: dict[str, Hand], dec: pd.DataFrame, uid: int) -> pd.DataFrame:
     """One row per suspicious hand (first qualifying decision, priority A > B > C > D).
-    Sorted by decision label (Perfect, Good, Average), then pot size."""
+    Sorted by decision label (Perfect, Good, Average), then pot size. No suspicious hand: no rows, the same columns."""
     mine = dec[dec["uid"] == uid]
     out = []
     for gid, grp in mine.groupby("hand_uid", sort=False):
@@ -117,7 +135,7 @@ def find_suspicious(hands: dict[str, Hand], dec: pd.DataFrame, uid: int) -> pd.D
             "pot_bb": round(pot_bb, 1),
             "net_win": hand.settlement.get(uid, 0.0),
         })
-    df = pd.DataFrame(out)
+    df = pd.DataFrame(out) if out else pd.DataFrame(columns=COLUMNS)
     if df.empty:
         return df
     df["_order"] = df["decision_label"].str.split().str[0].map(LABEL_ORDER)

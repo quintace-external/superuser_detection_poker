@@ -148,7 +148,7 @@ def test_negative_rake_and_other_drops_keep_the_money_identity():
 
 
 GRAMMAR = """
-    Sample Hand #A-77: Hold'em No Limit ($5/$10 - Ante $1 USD) - 2020/02/03 4:05:06 ET
+    Sample Hand #A-77: Hold'em No Limit ($5/$10 - Ante $1 USD) - 2001/02/03 4:05:06 ET
     Table 'Big Table' 9-max (Real Money) Seat #2 is the button
     Seat 1: Mr: X ($1,500 in chips)
     Seat 2: big shot ($300.50 in chips)
@@ -361,37 +361,38 @@ def test_unknown_grammar_never_raises():
 
 
 SECOND_BIG_BLIND = """
-    Hand #5006: Hold'em No Limit (0.50/1.00) - 2001/01/01 10:00:00 UTC
-    Table 'T01' 7-max Seat #3 is the button
-    Seat 1: R (100.00 in chips)
-    Seat 3: BT (100.00 in chips)
-    Seat 5: SB (100.00 in chips)
-    Seat 6: BB (100.00 in chips)
-    Seat 7: W (100.00 in chips)
-    Seat 2: AWAY (100.00 in chips) is sitting out
-    SB: posts the ante 0.10
-    BB: posts the ante 0.10
-    W: posts the ante 0.10
-    R: posts the ante 0.10
-    BT: posts the ante 0.10
+    Hand #5006: Hold'em No Limit (1.00/2.00) - 2001/01/01 10:00:00 UTC
+    Table 'T02' 6-max Seat #6 is the button
+    Seat 1: SB (200.00 in chips)
+    Seat 2: BB (200.00 in chips)
+    Seat 4: W (200.00 in chips)
+    Seat 5: R (200.00 in chips)
+    Seat 6: BT (200.00 in chips)
+    Seat 3: AWAY (200.00 in chips) is sitting out
+    SB: posts the ante 0.20
+    BB: posts the ante 0.20
+    W: posts the ante 0.20
+    R: posts the ante 0.20
+    BT: posts the ante 0.20
     AWAY: didn't post the ante
-    SB: posts small blind 0.50
-    BB: posts big blind 1.00
-    R: posts big blind 1.00
+    SB: posts small blind 1.00
+    BB: posts big blind 2.00
+    R: posts big blind 2.00
     *** HOLE CARDS ***
-    W: folds
+    W: calls 2.00
     R: checks
-    BT: raises 1.50 to 2.50
+    BT: folds
     SB: folds
-    BB: folds
+    BB: raises 6.00 to 8.00
+    W: folds
     R: folds
-    Uncalled bet (1.50) returned to BT
-    BT collected 4.00 from pot
-    BT: doesn't show hand
+    Uncalled bet (6.00) returned to BB
+    BB collected 8.00 from pot
+    BB: doesn't show hand
     *** SUMMARY ***
-    Total pot 4.00 | Rake 0.00
+    Total pot 8.00 | Rake 0.00
     Game ended: 2001/01/01 10:01:00 UTC
-    Seat 1: R folded before Flop
+    Seat 5: R folded before Flop
 """
 
 
@@ -403,7 +404,7 @@ def test_a_second_big_blind_post_is_live_and_only_the_first_names_the_big_blind(
     assert r.players["W"]["position"] == "HJ"
     check = r.decisions("R")[0]
     assert check["action"] == "check" and check["to_call_bb"] == 0 and check["street_put_before_bb"] == 1.0
-    assert r.players["BT"]["net_bb"] == approx(4.0 - 2.6 + 1.5)
+    assert r.players["BB"]["net_bb"] == approx(4.0 - 4.1 + 3.0)
 
 
 def test_an_actor_without_a_seat_line_is_dropped():
